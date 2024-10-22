@@ -28,6 +28,34 @@ services:
     ports:
       - "127.0.0.1:4000:4000"
 
+  gethscout:
+    depends_on:
+      - postgres
+    image: blockscout-testnode
+    restart: always
+    container_name: 'gethscout'
+    links:
+      - postgres:database
+    command:
+      - /bin/sh
+      - -c
+      - |
+        bin/blockscout eval "Elixir.Explorer.ReleaseTasks.create_and_migrate()"
+        node init/install.js postgres 5432
+        bin/blockscout start
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+    env_file:
+      -  ./blockscout/nitro.env
+    environment:
+      ETHEREUM_JSONRPC_VARIANT: 'geth'
+      ETHEREUM_JSONRPC_HTTP_URL: http://sequencer:8547/
+      INDEXER_DISABLE_PENDING_TRANSACTIONS_FETCHER: "true"
+      DATABASE_URL: postgresql://postgres:@postgres:5432/blockscout
+      ECTO_USE_SSL: "false"
+    ports:
+      - "127.0.0.1:4000:4000"
+
   postgres:
     image: postgres:13.6
     restart: always
@@ -47,7 +75,7 @@ services:
       - "127.0.0.1:6379:6379"
 
   geth:
-    image: ethereum/client-go:latest
+    image: ethereum/client-go:stable
     ports:
       - "127.0.0.1:8545:8545"
       - "127.0.0.1:8551:8551"
