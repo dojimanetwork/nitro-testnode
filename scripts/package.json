@@ -18,7 +18,8 @@
   },
   "scripts": {
     "build": "tsc -p .",
-    "postinstall": "echo 'Postinstall running without source available'"
+    "postinstall": "echo 'Postinstall running without source available'",
+    "bridge-funds": "node index.js bridge-funds --ethamount 100"
   },
   "private": true,
   "devDependencies": {}

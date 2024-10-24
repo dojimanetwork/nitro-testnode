@@ -47,8 +47,8 @@ function writeGethGenesisConfig(argv: any) {
     const gethConfig = `
     {
         "config": {
-            "ChainName": "l1_chain",
-                "chainId": 1337,
+            "ChainName": "dojimachain",
+                "chainId": 187,
                 "homesteadBlock": 0,
                 "daoForkSupport": true,
                 "eip150Block": 0,
@@ -178,7 +178,7 @@ function writeConfigs(argv: any) {
                 "dangerous": {
                     "without-block-validator": false
                 },
-                "parent-chain-wallet" : {
+                "parent-chain-wallet": {
                     "account": namedAddress("validator"),
                     "password": consts.l1passphrase,
                     "pathname": consts.l1keystore,    
@@ -212,7 +212,7 @@ function writeConfigs(argv: any) {
                 "redis-url": argv.redisUrl,
                 "max-delay": "30s",
                 "l1-block-bound": "ignore",
-                "parent-chain-wallet" : {
+                "parent-chain-wallet": {
                     "account": namedAddress("sequencer"),
                     "password": consts.l1passphrase,
                     "pathname": consts.l1keystore,    
@@ -227,7 +227,7 @@ function writeConfigs(argv: any) {
             "block-validator": {
                 "validation-server": {
                     "url": argv.validationNodeUrl,
-                    "jwtsecret": valJwtSecret,
+                    "jwtsecret": "",
                 }
             }
         },
@@ -323,7 +323,7 @@ function writeConfigs(argv: any) {
             "api-public": false,
         },
         "auth": {
-            "jwtsecret": valJwtSecret,
+            "jwtsecret": "",
             "addr": "0.0.0.0",
         },
     }))
@@ -401,11 +401,11 @@ export const writeConfigCommand = {
     describe: "writes config files",
     builder: {
         simple: {
-          boolean: true,
-          describe: "simple config (sequencer is also poster, validator)",
-          default: false,
+            boolean: true,
+            describe: "simple config (sequencer is also poster, validator)",
+            default: false,
         },
-      },    
+    },
     handler: (argv: any) => {
         writeConfigs(argv)
     }

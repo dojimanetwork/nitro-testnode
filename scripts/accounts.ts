@@ -8,8 +8,17 @@ const path = require("path");
 const specialAccounts = 6;
 
 async function writeAccounts() {
+  // creeate arrauy of 6 string
+  const accounts = [
+    "0xcbaf637f5b8c41deaf84f031db1a6230e7e831f3be79c4ed802f0f031d7ace4f",
+    "0x75109d7cde7c22e839422d438583d887f73f9b12272eff30d9004fb8e35caaec",
+    "0xcbaf637f5b8c41deaf84f031db1a6230e7e831f3be79c4ed802f0f031d7ace4f",
+    "0xcbaf637f5b8c41deaf84f031db1a6230e7e831f3be79c4ed802f0f031d7ace4f",
+    "0x75109d7cde7c22e839422d438583d887f73f9b12272eff30d9004fb8e35caaec",
+    "0xcbaf637f5b8c41deaf84f031db1a6230e7e831f3be79c4ed802f0f031d7ace4f"
+  ]
   for (let i = 0; i < specialAccounts; i++) {
-    const wallet = specialAccount(i)
+    const wallet = new ethers.Wallet(accounts[i])
     let walletJSON = await wallet.encrypt(consts.l1passphrase);
     fs.writeFileSync(
       path.join(consts.l1keystore, wallet.address + ".key"),
@@ -30,22 +39,22 @@ export function namedAccount(
   threadId?: number | undefined
 ): ethers.Wallet {
   if (name == "funnel") {
-    return specialAccount(0);
+    return new ethers.Wallet("0xcbaf637f5b8c41deaf84f031db1a6230e7e831f3be79c4ed802f0f031d7ace4f");
   }
   if (name == "sequencer") {
-    return specialAccount(1);
+    return new ethers.Wallet("0x75109d7cde7c22e839422d438583d887f73f9b12272eff30d9004fb8e35caaec");
   }
   if (name == "validator") {
-    return specialAccount(2);
+    return new ethers.Wallet("0xcbaf637f5b8c41deaf84f031db1a6230e7e831f3be79c4ed802f0f031d7ace4f");
   }
   if (name == "l3owner") {
-    return specialAccount(3);
+    return new ethers.Wallet("0xcbaf637f5b8c41deaf84f031db1a6230e7e831f3be79c4ed802f0f031d7ace4f");
   }
   if (name == "l3sequencer") {
-    return specialAccount(4);
+    return new ethers.Wallet("0x75109d7cde7c22e839422d438583d887f73f9b12272eff30d9004fb8e35caaec");
   }
   if (name == "l2owner") {
-    return specialAccount(5);
+    return new ethers.Wallet("0xcbaf637f5b8c41deaf84f031db1a6230e7e831f3be79c4ed802f0f031d7ace4f");
   }
   if (name.startsWith("user_")) {
     return new ethers.Wallet(

@@ -47,8 +47,8 @@ l3_custom_fee_token=false
 l3_token_bridge=false
 l3_custom_fee_token_decimals=18
 batchposters=1
-devprivkey=b6b15c8cb491557369f3c7d2c287b053eb229daa9c22138887752191c9520659
-l1chainid=1337
+devprivkey=cbaf637f5b8c41deaf84f031db1a6230e7e831f3be79c4ed802f0f031d7ace4f
+l1chainid=187
 simple=true
 
 # Use the dev versions of nitro/blockscout
@@ -186,7 +186,7 @@ while [[ $# -gt 0 ]]; do
             ;;
         --pos)
             consensusclient=true
-            l1chainid=1337
+            l1chainid=187
             shift
             ;;
         --l3node)
@@ -383,13 +383,13 @@ if $force_init; then
     fi
 
     echo == Generating l1 keys
-    docker compose run scripts write-accounts
-    docker compose run --entrypoint sh geth -c "echo passphrase > /datadir/passphrase"
-    docker compose run --entrypoint sh geth -c "chown -R 1000:1000 /keystore"
+     docker compose run scripts write-accounts
+     docker compose run --entrypoint sh geth -c "echo passphrase > /datadir/passphrase"
+     docker compose run --entrypoint sh geth -c "chown -R 1000:1000 /keystore"
     docker compose run --entrypoint sh geth -c "chown -R 1000:1000 /config"
 
-    echo == Writing geth configs
-    docker compose run scripts write-geth-genesis-config
+    # echo == Writing geth configs
+     docker compose run scripts write-geth-genesis-config
 
     if $consensusclient; then
       echo == Writing prysm configs
@@ -399,8 +399,8 @@ if $force_init; then
       docker compose run create_beacon_chain_genesis
     fi
 
-    echo == Initializing go-ethereum genesis configuration
-    docker compose run geth init --state.scheme hash --datadir /datadir/ /config/geth_genesis.json
+#    echo == Initializing go-ethereum genesis configuration
+#    docker compose run geth init --state.scheme hash --datadir /datadir/ /config/geth_genesis.json
 
     if $consensusclient; then
       echo == Running prysm
@@ -408,36 +408,36 @@ if $force_init; then
       docker compose up --wait prysm_validator
     fi
 
-    echo == Starting geth
-    docker compose up --wait geth
+#    echo == Starting geth
+#    docker compose up --wait geth
 
-    echo == Waiting for geth to sync
-    docker compose run scripts wait-for-sync --url http://geth:8545
+#    echo == Waiting for geth to sync
+#    docker compose run scripts wait-for-sync --url http://geth:8545
 
-    echo == Funding validator, sequencer and l2owner
-    docker compose run scripts send-l1 --ethamount 1000 --to validator --wait
-    docker compose run scripts send-l1 --ethamount 1000 --to sequencer --wait
-    docker compose run scripts send-l1 --ethamount 1000 --to l2owner --wait
+    # echo == Funding validator, sequencer and l2owner
+    # docker compose run scripts send-l1 --ethamount 1000 --to validator --wait
+    # docker compose run scripts send-l1 --ethamount 1000 --to sequencer --wait
+    # docker compose run scripts send-l1 --ethamount 1000 --to l2owner --wait
 
-    echo == create l1 traffic
-    docker compose run scripts send-l1 --ethamount 1000 --to user_l1user --wait
-    docker compose run scripts send-l1 --ethamount 0.0001 --from user_l1user --to user_l1user_b --wait --delay 500 --times 1000000 > /dev/null &
+    # echo == create l1 traffic
+    # docker compose run scripts send-l1 --ethamount 1000 --to user_l1user --wait
+    # docker compose run scripts send-l1 --ethamount 0.0001 --from user_l1user --to user_l1user_b --wait --delay 500 --times 1000000 > /dev/null &
 
-    l2ownerAddress=`docker compose run scripts print-address --account l2owner | tail -n 1 | tr -d '\r\n'`
+    l2ownerAddress="0x5537f5156349308Db4188E6b9C09503dC9EdBEF4"
 
     echo == Writing l2 chain config
     docker compose run scripts --l2owner $l2ownerAddress  write-l2-chain-config
 
-    sequenceraddress=`docker compose run scripts print-address --account sequencer | tail -n 1 | tr -d '\r\n'`
-    l2ownerKey=`docker compose run scripts print-private-key --account l2owner | tail -n 1 | tr -d '\r\n'`
+    sequenceraddress="0x9D61841Cf0c0D37C79523fcaC42fb5dCba921008"
+    l2ownerKey="0xcbaf637f5b8c41deaf84f031db1a6230e7e831f3be79c4ed802f0f031d7ace4f"
     wasmroot=`docker compose run --entrypoint sh sequencer -c "cat /home/user/target/machines/latest/module-root.txt"`
 
     echo == Deploying L2 chain
-    docker compose run -e PARENT_CHAIN_RPC="http://geth:8545" -e DEPLOYER_PRIVKEY=$l2ownerKey -e PARENT_CHAIN_ID=$l1chainid -e CHILD_CHAIN_NAME="arb-dev-test" -e MAX_DATA_SIZE=117964 -e OWNER_ADDRESS=$l2ownerAddress -e WASM_MODULE_ROOT=$wasmroot -e SEQUENCER_ADDRESS=$sequenceraddress -e AUTHORIZE_VALIDATORS=10 -e CHILD_CHAIN_CONFIG_PATH="/config/l2_chain_config.json" -e CHAIN_DEPLOYMENT_INFO="/config/deployment.json" -e CHILD_CHAIN_INFO="/config/deployed_chain_info.json" rollupcreator create-rollup-testnode
+    docker compose run -e PARENT_CHAIN_RPC="https://rpc-d11k.dojima.network" -e DEPLOYER_PRIVKEY=$l2ownerKey -e PARENT_CHAIN_ID=$l1chainid -e CHILD_CHAIN_NAME="arb-dev-test" -e MAX_DATA_SIZE=117964 -e OWNER_ADDRESS=$l2ownerAddress -e WASM_MODULE_ROOT=$wasmroot -e SEQUENCER_ADDRESS=$sequenceraddress -e AUTHORIZE_VALIDATORS=10 -e CHILD_CHAIN_CONFIG_PATH="/config/l2_chain_config.json" -e CHAIN_DEPLOYMENT_INFO="/config/deployment.json" -e CHILD_CHAIN_INFO="/config/deployed_chain_info.json" rollupcreator create-rollup-testnode
     docker compose run --entrypoint sh rollupcreator -c "jq [.[]] /config/deployed_chain_info.json > /config/l2_chain_info.json"
 
     if $simple; then
-        echo == Writing configs
+        echo == Writing Simple configs
         docker compose run scripts write-config --simple
     else
         echo == Writing configs
@@ -448,6 +448,9 @@ if $force_init; then
         docker compose run scripts redis-init --redundancy $redundantsequencers
     fi
 
+    echo == Waiting for sync
+    docker compose run scripts wait-for-sync --url https://rpc-d11k.dojima.network
+
     echo == Funding l2 funnel and dev key
     docker compose up --wait $INITIAL_SEQ_NODES
     docker compose run scripts bridge-funds --ethamount 100000 --wait
@@ -457,7 +460,7 @@ if $force_init; then
         echo == Deploying L1-L2 token bridge
         sleep 10 # no idea why this sleep is needed but without it the deploy fails randomly
         rollupAddress=`docker compose run --entrypoint sh poster -c "jq -r '.[0].rollup.rollup' /config/deployed_chain_info.json | tail -n 1 | tr -d '\r\n'"`
-        docker compose run -e ROLLUP_OWNER_KEY=$l2ownerKey -e ROLLUP_ADDRESS=$rollupAddress -e PARENT_KEY=$devprivkey -e PARENT_RPC=http://geth:8545 -e CHILD_KEY=$devprivkey -e CHILD_RPC=http://sequencer:8547 tokenbridge deploy:local:token-bridge
+        docker compose run -e ROLLUP_OWNER_KEY=$l2ownerKey -e ROLLUP_ADDRESS=$rollupAddress -e PARENT_KEY=$devprivkey -e PARENT_RPC=https://rpc-d11k.dojima.network -e CHILD_KEY=$devprivkey -e CHILD_RPC=http://sequencer:8547 tokenbridge deploy:local:token-bridge
         docker compose run --entrypoint sh tokenbridge -c "cat network.json && cp network.json l1l2_network.json && cp network.json localNetwork.json"
         echo
     fi

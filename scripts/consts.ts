@@ -1,6 +1,6 @@
 export const l1keystore = "/home/user/l1keystore";
 export const l1passphrase = "passphrase";
-export const configpath = "/config";
+export const configpath = "/Users/tikaryan/go/src/github.com/OffchainLabs/nitro-testnode/config";
 export const tokenbridgedatapath = "/tokenbridge-data";
 // Not secure. Do not use for production purposes
 export const l1mnemonic =
