@@ -6,7 +6,7 @@ NITRO_NODE_VERSION=offchainlabs/nitro-node:v3.2.1-d81324d-dev
 BLOCKSCOUT_VERSION=offchainlabs/blockscout:v1.1.0-0e716c8
 
 # This commit matches v2.1.0 release of nitro-contracts, with additional support to set arb owner through upgrade executor
-DEFAULT_NITRO_CONTRACTS_VERSION="82ca98bfae96841878a0f7f1b04811cfa32e41b4"
+DEFAULT_NITRO_CONTRACTS_VERSION="586acde4c151fa01dae0a44ba03685fe68d8ae2a"
 DEFAULT_TOKEN_BRIDGE_VERSION="v1.2.2"
 
 # Set default versions if not overriden by provided env vars
@@ -412,12 +412,15 @@ if $force_init; then
 #    docker compose up --wait geth
 
 #    echo == Waiting for geth to sync
-   docker compose run scripts wait-for-sync --url http://host.docker.internal:8545
+#    docker compose run scripts wait-for-sync --url http://host.docker.internal:8545
 
     # echo == Funding validator, sequencer and l2owner
-    docker compose run scripts send-l1 --ethamount 1000 --to validator --wait
-    docker compose run scripts send-l1 --ethamount 1000 --to sequencer --wait
-    docker compose run scripts send-l1 --ethamount 1000 --to l2owner --wait
+    # docker compose run scripts send-l1 --ethamount 100 --to validator
+    # sleep 5
+    # docker compose run scripts send-l1 --ethamount 100 --to sequencer
+    # sleep 5
+    # docker compose run scripts send-l1 --ethamount 100 --to l2owner 
+    # sleep 5
 
     # echo == create l1 traffic
     # docker compose run scripts send-l1 --ethamount 1000 --to user_l1user --wait

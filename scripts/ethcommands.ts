@@ -41,7 +41,7 @@ async function bridgeFunds(argv: any, parentChainUrl: string, chainUrl: string, 
 
   await runStress(argv, sendTransaction);
   if (argv.wait) {
-    const l2provider = new ethers.providers.WebSocketProvider(chainUrl);
+    const l2provider = new ethers.providers.JsonRpcProvider(chainUrl);
     const account = namedAccount(argv.from, argv.threadId).connect(l2provider)
     const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
     while (true) {
@@ -432,11 +432,9 @@ export const sendL1Command = {
     data: { string: true, describe: "data" },
   },
   handler: async (argv: any) => {
-    argv.provider = new ethers.providers.WebSocketProvider(argv.l1url);
+    argv.provider = new ethers.providers.JsonRpcProvider(argv.l1url);
 
     await runStress(argv, sendTransaction);
-
-    argv.provider.destroy();
   },
 };
 
