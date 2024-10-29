@@ -6,7 +6,7 @@ NITRO_NODE_VERSION=offchainlabs/nitro-node:v3.2.1-d81324d-dev
 BLOCKSCOUT_VERSION=offchainlabs/blockscout:v1.1.0-0e716c8
 
 # This commit matches v2.1.0 release of nitro-contracts, with additional support to set arb owner through upgrade executor
-DEFAULT_NITRO_CONTRACTS_VERSION="99c07a7db2fcce75b751c5a2bd4936e898cda065"
+DEFAULT_NITRO_CONTRACTS_VERSION="82ca98bfae96841878a0f7f1b04811cfa32e41b4"
 DEFAULT_TOKEN_BRIDGE_VERSION="v1.2.2"
 
 # Set default versions if not overriden by provided env vars
@@ -48,7 +48,7 @@ l3_token_bridge=false
 l3_custom_fee_token_decimals=18
 batchposters=1
 devprivkey=cbaf637f5b8c41deaf84f031db1a6230e7e831f3be79c4ed802f0f031d7ace4f
-l1chainid=187
+l1chainid=184
 simple=true
 
 # Use the dev versions of nitro/blockscout
@@ -186,7 +186,7 @@ while [[ $# -gt 0 ]]; do
             ;;
         --pos)
             consensusclient=true
-            l1chainid=187
+            l1chainid=184
             shift
             ;;
         --l3node)
@@ -383,13 +383,13 @@ if $force_init; then
     fi
 
     echo == Generating l1 keys
-     docker compose run scripts write-accounts
-     docker compose run --entrypoint sh geth -c "echo passphrase > /datadir/passphrase"
-     docker compose run --entrypoint sh geth -c "chown -R 1000:1000 /keystore"
+    docker compose run scripts write-accounts
+    docker compose run --entrypoint sh geth -c "echo passphrase > /datadir/passphrase"
+    docker compose run --entrypoint sh geth -c "chown -R 1000:1000 /keystore"
     docker compose run --entrypoint sh geth -c "chown -R 1000:1000 /config"
 
     # echo == Writing geth configs
-     docker compose run scripts write-geth-genesis-config
+    docker compose run scripts write-geth-genesis-config
 
     if $consensusclient; then
       echo == Writing prysm configs
@@ -412,12 +412,12 @@ if $force_init; then
 #    docker compose up --wait geth
 
 #    echo == Waiting for geth to sync
-#    docker compose run scripts wait-for-sync --url http://geth:8545
+   docker compose run scripts wait-for-sync --url http://host.docker.internal:8545
 
     # echo == Funding validator, sequencer and l2owner
-    # docker compose run scripts send-l1 --ethamount 1000 --to validator --wait
-    # docker compose run scripts send-l1 --ethamount 1000 --to sequencer --wait
-    # docker compose run scripts send-l1 --ethamount 1000 --to l2owner --wait
+    docker compose run scripts send-l1 --ethamount 1000 --to validator --wait
+    docker compose run scripts send-l1 --ethamount 1000 --to sequencer --wait
+    docker compose run scripts send-l1 --ethamount 1000 --to l2owner --wait
 
     # echo == create l1 traffic
     # docker compose run scripts send-l1 --ethamount 1000 --to user_l1user --wait
@@ -433,7 +433,7 @@ if $force_init; then
     wasmroot=`docker compose run --entrypoint sh sequencer -c "cat /home/user/target/machines/latest/module-root.txt"`
 
     echo == Deploying L2 chain
-    docker compose run -e PARENT_CHAIN_RPC="https://rpc-d11k.dojima.network" -e DEPLOYER_PRIVKEY=$l2ownerKey -e PARENT_CHAIN_ID=$l1chainid -e CHILD_CHAIN_NAME="arb-dev-test" -e MAX_DATA_SIZE=117964 -e OWNER_ADDRESS=$l2ownerAddress -e WASM_MODULE_ROOT=$wasmroot -e SEQUENCER_ADDRESS=$sequenceraddress -e AUTHORIZE_VALIDATORS=10 -e CHILD_CHAIN_CONFIG_PATH="/config/l2_chain_config.json" -e CHAIN_DEPLOYMENT_INFO="/config/deployment.json" -e CHILD_CHAIN_INFO="/config/deployed_chain_info.json" rollupcreator create-rollup-testnode
+    docker compose run -e PARENT_CHAIN_RPC="http://host.docker.internal:8545" -e DEPLOYER_PRIVKEY=$l2ownerKey -e PARENT_CHAIN_ID=$l1chainid -e CHILD_CHAIN_NAME="arb-dev-test" -e MAX_DATA_SIZE=117964 -e OWNER_ADDRESS=$l2ownerAddress -e WASM_MODULE_ROOT=$wasmroot -e SEQUENCER_ADDRESS=$sequenceraddress -e AUTHORIZE_VALIDATORS=10 -e CHILD_CHAIN_CONFIG_PATH="/config/l2_chain_config.json" -e CHAIN_DEPLOYMENT_INFO="/config/0x5537f5156349308Db4188E6b9C09503dC9EdBEF4" -e CHILD_CHAIN_INFO="/config/deployed_chain_info.json" rollupcreator create-rollup-testnode
     docker compose run --entrypoint sh rollupcreator -c "jq [.[]] /config/deployed_chain_info.json > /config/l2_chain_info.json"
 
     if $simple; then
@@ -448,19 +448,16 @@ if $force_init; then
         docker compose run scripts redis-init --redundancy $redundantsequencers
     fi
 
-    echo == Waiting for sync
-    docker compose run scripts wait-for-sync --url https://rpc-d11k.dojima.network
-
     echo == Funding l2 funnel and dev key
     docker compose up --wait $INITIAL_SEQ_NODES
-    docker compose run scripts bridge-funds --ethamount 100000 --wait
+    docker compose run scripts bridge-funds --ethamount 100 --wait
     docker compose run scripts send-l2 --ethamount 100 --to l2owner --wait
 
     if $tokenbridge; then
         echo == Deploying L1-L2 token bridge
         sleep 10 # no idea why this sleep is needed but without it the deploy fails randomly
         rollupAddress=`docker compose run --entrypoint sh poster -c "jq -r '.[0].rollup.rollup' /config/deployed_chain_info.json | tail -n 1 | tr -d '\r\n'"`
-        docker compose run -e ROLLUP_OWNER_KEY=$l2ownerKey -e ROLLUP_ADDRESS=$rollupAddress -e PARENT_KEY=$devprivkey -e PARENT_RPC=https://rpc-d11k.dojima.network -e CHILD_KEY=$devprivkey -e CHILD_RPC=http://sequencer:8547 tokenbridge deploy:local:token-bridge
+        docker compose run -e ROLLUP_OWNER_KEY=$l2ownerKey -e ROLLUP_ADDRESS=$rollupAddress -e PARENT_KEY=$devprivkey -e PARENT_RPC=http://host.docker.internal:8545 -e CHILD_KEY=$devprivkey -e CHILD_RPC=http://sequencer:8547 tokenbridge deploy:local:token-bridge
         docker compose run --entrypoint sh tokenbridge -c "cat network.json && cp network.json l1l2_network.json && cp network.json localNetwork.json"
         echo
     fi

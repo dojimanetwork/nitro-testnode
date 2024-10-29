@@ -48,7 +48,7 @@ function writeGethGenesisConfig(argv: any) {
     {
         "config": {
             "ChainName": "dojimachain",
-                "chainId": 187,
+                "chainId": 184,
                 "homesteadBlock": 0,
                 "daoForkSupport": true,
                 "eip150Block": 0,
@@ -181,7 +181,7 @@ function writeConfigs(argv: any) {
                 "parent-chain-wallet": {
                     "account": namedAddress("validator"),
                     "password": consts.l1passphrase,
-                    "pathname": consts.l1keystore,    
+                    "pathname": consts.l1keystore,
                 },
                 "disable-challenge": false,
                 "enable": false,
@@ -215,7 +215,7 @@ function writeConfigs(argv: any) {
                 "parent-chain-wallet": {
                     "account": namedAddress("sequencer"),
                     "password": consts.l1passphrase,
-                    "pathname": consts.l1keystore,    
+                    "pathname": consts.l1keystore,
                 },
                 "data-poster": {
                     "redis-signer": {

@@ -33,9 +33,9 @@ services:
     restart: always
     container_name: 'postgres'
     environment:
-        POSTGRES_PASSWORD: ''
-        POSTGRES_USER: 'postgres'
-        POSTGRES_HOST_AUTH_METHOD: 'trust'
+      POSTGRES_PASSWORD: ''
+      POSTGRES_USER: 'postgres'
+      POSTGRES_HOST_AUTH_METHOD: 'trust'
     volumes:
       - "postgres-data:/var/lib/postgresql/data"
     ports:
@@ -340,7 +340,7 @@ services:
         TOKEN_BRIDGE_BRANCH: ${TOKEN_BRIDGE_BRANCH:-}
     environment:
       - ARB_URL=http://sequencer:8547
-      - ETH_URL=https://rpc-d11k.dojima.network
+      - ETH_URL=http://host.docker.internal:8545
     volumes:
       - "tokenbridge-data:/workspace"
       - /var/run/docker.sock:/var/run/docker.sock

@@ -40,8 +40,6 @@ async function bridgeFunds(argv: any, parentChainUrl: string, chainUrl: string, 
     "0x0f4d14e9000000000000000000000000000000000000000000000000000082f79cd90000";
 
   await runStress(argv, sendTransaction);
-
-  argv.provider.destroy();
   if (argv.wait) {
     const l2provider = new ethers.providers.WebSocketProvider(chainUrl);
     const account = namedAccount(argv.from, argv.threadId).connect(l2provider)
