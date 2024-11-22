@@ -33,6 +33,7 @@ async function main() {
       l3url: { string: true, default: "ws://l3node:3348" },
       validationNodeUrl: { string: true, default: "ws://validation_node:8549" },
       l2owner: { string: true, default: "0x5537f5156349308Db4188E6b9C09503dC9EdBEF4" },
+      configpath: {string: true}
     })
     .options(stressOptions)
     .command(bridgeFundsCommand)

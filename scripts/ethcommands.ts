@@ -161,7 +161,7 @@ export const bridgeFundsCommand = {
   handler: async (argv: any) => {
     const deploydata = JSON.parse(
       fs
-        .readFileSync(path.join(consts.configpath, "deployment.json"))
+        .readFileSync(path.join(argv.configpath, "deployment.json"))
         .toString()
     );
     const inboxAddr = ethers.utils.hexlify(deploydata.inbox);
