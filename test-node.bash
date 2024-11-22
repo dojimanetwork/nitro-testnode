@@ -6,7 +6,7 @@ NITRO_NODE_VERSION=offchainlabs/nitro-node:v3.2.1-d81324d-dev
 BLOCKSCOUT_VERSION=offchainlabs/blockscout:v1.1.0-0e716c8
 
 # This commit matches v2.1.0 release of nitro-contracts, with additional support to set arb owner through upgrade executor
-DEFAULT_NITRO_CONTRACTS_VERSION="586acde4c151fa01dae0a44ba03685fe68d8ae2a"
+DEFAULT_NITRO_CONTRACTS_VERSION="188b8fcd71ccc022fc76a822036414d816a18522"
 DEFAULT_TOKEN_BRIDGE_VERSION="v1.2.2"
 
 # Set default versions if not overriden by provided env vars
@@ -352,6 +352,7 @@ fi
 if $dev_nitro; then
   docker tag nitro-node-dev:latest nitro-node-dev-testnode
 else
+  echo "==========entered"
   docker pull $NITRO_NODE_VERSION
   docker tag $NITRO_NODE_VERSION nitro-node-dev-testnode
 fi
@@ -419,7 +420,7 @@ if $force_init; then
     # sleep 5
     # docker compose run scripts send-l1 --ethamount 100 --to sequencer
     # sleep 5
-    # docker compose run scripts send-l1 --ethamount 100 --to l2owner 
+    # docker compose run scripts send-l1 --ethamount 100 --to l2owner
     # sleep 5
 
     # echo == create l1 traffic
@@ -436,7 +437,7 @@ if $force_init; then
     wasmroot=`docker compose run --entrypoint sh sequencer -c "cat /home/user/target/machines/latest/module-root.txt"`
 
     echo == Deploying L2 chain
-    docker compose run -e PARENT_CHAIN_RPC="http://host.docker.internal:8545" -e DEPLOYER_PRIVKEY=$l2ownerKey -e PARENT_CHAIN_ID=$l1chainid -e CHILD_CHAIN_NAME="arb-dev-test" -e MAX_DATA_SIZE=117964 -e OWNER_ADDRESS=$l2ownerAddress -e WASM_MODULE_ROOT=$wasmroot -e SEQUENCER_ADDRESS=$sequenceraddress -e AUTHORIZE_VALIDATORS=10 -e CHILD_CHAIN_CONFIG_PATH="/config/l2_chain_config.json" -e CHAIN_DEPLOYMENT_INFO="/config/0x5537f5156349308Db4188E6b9C09503dC9EdBEF4" -e CHILD_CHAIN_INFO="/config/deployed_chain_info.json" rollupcreator create-rollup-testnode
+    docker compose run -e PARENT_CHAIN_RPC="http://host.docker.internal:8545" -e DEPLOYER_PRIVKEY=$l2ownerKey -e PARENT_CHAIN_ID=$l1chainid -e CHILD_CHAIN_NAME="arb-dev-test" -e MAX_DATA_SIZE=117964 -e OWNER_ADDRESS=$l2ownerAddress -e WASM_MODULE_ROOT=$wasmroot -e SEQUENCER_ADDRESS=$sequenceraddress -e AUTHORIZE_VALIDATORS=10 -e CHILD_CHAIN_CONFIG_PATH="/config/l2_chain_config.json" -e CHAIN_DEPLOYMENT_INFO="/config/deployment.json" -e CHILD_CHAIN_INFO="/config/deployed_chain_info.json" rollupcreator create-rollup-testnode
     docker compose run --entrypoint sh rollupcreator -c "jq [.[]] /config/deployed_chain_info.json > /config/l2_chain_info.json"
 
     if $simple; then
@@ -454,7 +455,7 @@ if $force_init; then
     echo == Funding l2 funnel and dev key
     docker compose up --wait $INITIAL_SEQ_NODES
     docker compose run scripts bridge-funds --ethamount 100 --wait
-    docker compose run scripts send-l2 --ethamount 100 --to l2owner --wait
+    docker compose run scripts send-l2 --ethamount 100 --to sequencer --wait
 
     if $tokenbridge; then
         echo == Deploying L1-L2 token bridge
