@@ -41,6 +41,8 @@ else
 fi
 
 run=true
+run_dojima=true
+span_enable=true
 validate=false
 detach=false
 blockscout=false
@@ -58,8 +60,8 @@ l3_custom_fee_token=false
 l3_token_bridge=false
 l3_custom_fee_token_decimals=18
 batchposters=1
-devprivkey=b6b15c8cb491557369f3c7d2c287b053eb229daa9c22138887752191c9520659
-l1chainid=1337
+devprivkey=65c79fda17125d3a4f763d6863de3bb96d643f3db8b726e1499aa602745bd50e
+l1chainid=184
 simple=true
 simple_with_validator=false
 l2anytrust=false
@@ -74,6 +76,18 @@ build_dev_blockscout=false
 build_utils=false
 force_build_utils=false
 build_node_images=false
+
+dojima_config_path="/dojima-config"
+dojima_keystore_path="/dojima-keystore"
+dojima_data_path="/dojima-data"
+
+generate_env_file() {
+    cd scripts
+
+    echo "Generate dojima env"
+    node index.js write-dojima-env --dojimaSpanEnable=$span_enable
+
+}
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -212,7 +226,7 @@ while [[ $# -gt 0 ]]; do
             ;;
         --pos)
             consensusclient=true
-            l1chainid=1337
+            l1chainid=184
             shift
             ;;
         --l3node)
@@ -275,6 +289,11 @@ while [[ $# -gt 0 ]]; do
             simple=false
             shift
             ;;
+        --no-dojima)
+            run_dojima=false
+            create_doj_pool=false
+            shift
+            ;;
         *)
             echo Usage: $0 \[OPTIONS..]
             echo        $0 script [SCRIPT-ARGS]
@@ -309,6 +328,7 @@ while [[ $# -gt 0 ]]; do
             echo --build-utils         rebuild scripts, rollupcreator, token bridge docker images
             echo --no-build-utils      don\'t rebuild scripts, rollupcreator, token bridge docker images
             echo --force-build-utils   force rebuilding utils, useful if NITRO_CONTRACTS_ or TOKEN_BRIDGE_BRANCH changes
+            echo --no-dojima   Do not run the dojima node
             echo
             echo script runs inside a separate docker. For SCRIPT-ARGS, run $0 script --help
             exit 0
@@ -456,14 +476,16 @@ if $force_init; then
         docker volume rm $leftoverVolumes
     fi
 
-    echo == Generating l1 keys
-    docker compose run scripts write-accounts
-    docker compose run --entrypoint sh geth -c "echo passphrase > /datadir/passphrase"
-    docker compose run --entrypoint sh geth -c "chown -R 1000:1000 /keystore"
-    docker compose run --entrypoint sh geth -c "chown -R 1000:1000 /config"
-
-    echo == Writing geth configs
-    docker compose run scripts write-geth-genesis-config
+#    echo == Generating l1 keys
+#    docker compose run scripts write-accounts
+#    docker compose run scripts write-geth-accounts
+#
+#    docker compose run --entrypoint sh geth -c "echo passphrase > /datadir/passphrase"
+#    docker compose run --entrypoint sh geth -c "chown -R 1000:1000 /keystore"
+#    docker compose run --entrypoint sh geth -c "chown -R 1000:1000 /config"
+#
+#    echo == Writing geth configs
+#    docker compose run scripts write-geth-genesis-config
 
     if $consensusclient; then
       echo == Writing prysm configs
@@ -473,8 +495,8 @@ if $force_init; then
       docker compose run create_beacon_chain_genesis
     fi
 
-    echo == Initializing go-ethereum genesis configuration
-    docker compose run geth init --state.scheme hash --datadir /datadir/ /config/geth_genesis.json
+#    echo == Initializing go-ethereum genesis configuration
+#    docker compose run geth init --state.scheme hash --datadir /datadir/ /config/geth_genesis.json
 
     if $consensusclient; then
       echo == Running prysm
@@ -482,21 +504,49 @@ if $force_init; then
       docker compose up --wait prysm_validator
     fi
 
-    echo == Starting geth
-    docker compose up --wait geth
+#    echo == Starting geth
+#    docker compose up --wait geth
+#
+#    echo == Waiting for geth to sync
+#    docker compose run scripts wait-for-sync --url http://geth:8545
+#
+#    echo == Funding validator, sequencer and l2owner
+#    docker compose run scripts send-l1 --ethamount 1000 --to validator --wait
+#    docker compose run scripts send-l1 --ethamount 1000 --to sequencer --wait
+#    docker compose run scripts send-l1 --ethamount 1000 --to l2owner --wait
+#    docker compose run scripts send-l1 --ethamount 10000 --to espresso-sequencer --wait
+#
+#    echo == create l1 traffic
+#    docker compose run scripts send-l1 --ethamount 1000 --to user_l1user --wait
+#    docker compose run scripts send-l1 --ethamount 0.0001 --from user_l1user --to user_l1user_b --wait --delay 500 --times 1000000 > /dev/null &
 
-    echo == Waiting for geth to sync
-    docker compose run scripts wait-for-sync --url http://geth:8545
+    if $run_dojima; then
+      echo "== Generate env file"
+      generate_env_file
 
-    echo == Funding validator, sequencer and l2owner
-    docker compose run scripts send-l1 --ethamount 1000 --to validator --wait
-    docker compose run scripts send-l1 --ethamount 1000 --to sequencer --wait
-    docker compose run scripts send-l1 --ethamount 1000 --to l2owner --wait
-    docker compose run scripts send-l1 --ethamount 10000 --to espresso-sequencer --wait
+      echo "== Generating dojima keys"
+      docker compose run scripts write-accounts
 
-    echo == create l1 traffic
-    docker compose run scripts send-l1 --ethamount 1000 --to user_l1user --wait
-    docker compose run scripts send-l1 --ethamount 0.0001 --from user_l1user --to user_l1user_b --wait --delay 500 --times 1000000 > /dev/null &
+      echo "Creating volume for dojima chain"
+      docker compose run --entrypoint sh dojimachain -c "echo password > $dojima_data_path/passphrase"
+      docker compose run --entrypoint sh dojimachain -c "chown -R 1000:1000 $dojima_keystore_path"
+      docker compose run --entrypoint sh dojimachain -c "chown -R 1000:1000 $dojima_config_path"
+
+      echo "== Writing dojima genesis config"
+      docker compose run scripts write-dojima-config
+
+      echo "== Initializing dojima genesis configuration"
+      docker compose run dojimachain init --state.scheme hash --datadir $dojima_data_path $dojima_config_path/dojima_genesis.json
+
+      echo "== Starting dojima"
+      docker compose up --wait dojimachain
+
+      echo "== Funding validator, sequencer and l2owner addresses"
+      docker compose run scripts send-l1 --ethamount 10000 --to validator --wait
+      docker compose run scripts send-l1 --ethamount 10000 --to sequencer --wait
+      docker compose run scripts send-l1 --ethamount 10000 --to l2owner --wait
+      docker compose run scripts send-l1 --ethamount 10000 --to espresso-sequencer --wait
+    fi
 
     l2ownerAddress=`docker compose run scripts print-address --account l2owner | tail -n 1 | tr -d '\r\n'`
     echo $l2ownerAddress
@@ -505,7 +555,7 @@ if $force_init; then
         echo "== Writing l2 chain config (anytrust enabled)"
         docker compose run scripts --l2owner $l2ownerAddress  write-l2-chain-config --anytrust --espresso $l2_espresso
     else
-        echo == Writing l2 chain config
+        echo "== Writing l2 chain config"
         docker compose run scripts --l2owner $l2ownerAddress  write-l2-chain-config --espresso $l2_espresso
     fi
 
@@ -513,11 +563,18 @@ if $force_init; then
     l2ownerKey=`docker compose run scripts print-private-key --account l2owner | tail -n 1 | tr -d '\r\n'`
     wasmroot=`docker compose run --entrypoint sh sequencer -c "cat /home/user/target/machines/latest/module-root.txt"`
 
-    echo == Deploying L2 chain
-    docker compose run -e PARENT_CHAIN_RPC="http://geth:8545" -e DEPLOYER_PRIVKEY=$l2ownerKey -e PARENT_CHAIN_ID=$l1chainid -e CHILD_CHAIN_NAME="arb-dev-test" -e MAX_DATA_SIZE=117964 -e OWNER_ADDRESS=$l2ownerAddress -e WASM_MODULE_ROOT=$wasmroot -e SEQUENCER_ADDRESS=$sequenceraddress -e AUTHORIZE_VALIDATORS=10 -e CHILD_CHAIN_CONFIG_PATH="/config/l2_chain_config.json" -e CHAIN_DEPLOYMENT_INFO="/config/deployment.json" -e CHILD_CHAIN_INFO="/config/deployed_chain_info.json" -e LIGHT_CLIENT_ADDR=$lightClientAddr  rollupcreator create-rollup-testnode
-    docker compose run --entrypoint sh rollupcreator -c "jq [.[]] /config/deployed_chain_info.json > /config/l2_chain_info.json"
-    docker compose run --entrypoint sh rollupcreator -c "jq [.[]] /config/deployed_chain_info.json > /espresso-config/l2_chain_info.json"
-    docker compose run --entrypoint sh rollupcreator -c "cat /config/l2_chain_info.json"
+    echo "Sequencer address: $sequenceraddress"
+    echo "L2 owner key: $l2ownerKey"
+    echo "Wasm root: $wasmroot"
+    echo "L1 chain ID: $l1chainid"
+    echo "Light client address: $lightClientAddr"
+    echo "L2 owner address: $l2ownerAddress"
+
+    echo "== Deploying L2 chain"
+    docker compose run -e PARENT_CHAIN_RPC="http://host.docker.internal:9549" -e DEPLOYER_PRIVKEY=$l2ownerKey -e PARENT_CHAIN_ID=$l1chainid -e CHILD_CHAIN_NAME="arb-dev-test" -e MAX_DATA_SIZE=117964 -e OWNER_ADDRESS=$l2ownerAddress -e WASM_MODULE_ROOT=$wasmroot -e SEQUENCER_ADDRESS=$sequenceraddress -e AUTHORIZE_VALIDATORS=10 -e CHILD_CHAIN_CONFIG_PATH="/dojima-config/l2_chain_config.json" -e CHAIN_DEPLOYMENT_INFO="/dojima-config/deployment.json" -e CHILD_CHAIN_INFO="/dojima-config/deployed_chain_info.json" -e LIGHT_CLIENT_ADDR=$lightClientAddr  rollupcreator create-rollup-testnode
+    docker compose run --entrypoint sh rollupcreator -c "jq [.[]] /dojima-config/deployed_chain_info.json > /dojima-config/l2_chain_info.json"
+    docker compose run --entrypoint sh rollupcreator -c "jq [.[]] /dojima-config/deployed_chain_info.json > /espresso-config/l2_chain_info.json"
+    docker compose run --entrypoint sh rollupcreator -c "cat /dojima-config/l2_chain_info.json"
 
 fi # $force_init
 
@@ -538,7 +595,7 @@ if $l2anytrust; then
         das_bls_b=`docker compose run --entrypoint sh datool -c "cat /das-committee-b/keys/das_bls.pub"`
 
         docker compose run scripts write-l2-das-keyset-config --dasBlsA $das_bls_a --dasBlsB $das_bls_b
-        docker compose run --entrypoint sh datool -c "/usr/local/bin/datool dumpkeyset --conf.file /config/l2_das_keyset.json | grep 'Keyset: ' | awk '{ printf \"%s\", \$2 }' > /config/l2_das_keyset.hex"
+        docker compose run --entrypoint sh datool -c "/usr/local/bin/datool dumpkeyset --conf.file /dojima-config/l2_das_keyset.json | grep 'Keyset: ' | awk '{ printf \"%s\", \$2 }' > /dojima-config/l2_das_keyset.hex"
         docker compose run scripts set-valid-keyset
 
         anytrustNodeConfigLine="--anytrust --dasBlsA $das_bls_a --dasBlsB $das_bls_b"
@@ -576,9 +633,9 @@ if $force_init; then
     if $tokenbridge; then
         echo == Deploying L1-L2 token bridge
         sleep 10 # no idea why this sleep is needed but without it the deploy fails randomly
-        rollupAddress=`docker compose run --entrypoint sh poster -c "jq -r '.[0].rollup.rollup' /config/deployed_chain_info.json | tail -n 1 | tr -d '\r\n'"`
+        rollupAddress=`docker compose run --entrypoint sh poster -c "jq -r '.[0].rollup.rollup' /dojima-config/deployed_chain_info.json | tail -n 1 | tr -d '\r\n'"`
         l2ownerKey=`docker compose run scripts print-private-key --account l2owner | tail -n 1 | tr -d '\r\n'`
-        docker compose run -e ROLLUP_OWNER_KEY=$l2ownerKey -e ROLLUP_ADDRESS=$rollupAddress -e PARENT_KEY=$devprivkey -e PARENT_RPC=http://geth:8545 -e CHILD_KEY=$devprivkey -e CHILD_RPC=http://sequencer:8547 tokenbridge deploy:local:token-bridge
+        docker compose run -e ROLLUP_OWNER_KEY=$l2ownerKey -e ROLLUP_ADDRESS=$rollupAddress -e PARENT_KEY=$devprivkey -e PARENT_RPC=http://dojima-chain:9549 -e CHILD_KEY=$devprivkey -e CHILD_RPC=http://sequencer:8547 tokenbridge deploy:local:token-bridge
         docker compose run --entrypoint sh tokenbridge -c "cat network.json && cp network.json l1l2_network.json && cp network.json localNetwork.json"
         echo
     fi
@@ -622,8 +679,8 @@ if $force_init; then
         l3ownerkey=`docker compose run scripts print-private-key --account l3owner | tail -n 1 | tr -d '\r\n'`
         l3sequenceraddress=`docker compose run scripts print-address --account l3sequencer | tail -n 1 | tr -d '\r\n'`
 
-        docker compose run -e DEPLOYER_PRIVKEY=$l3ownerkey -e PARENT_CHAIN_RPC="http://sequencer:8547" -e PARENT_CHAIN_ID=412346 -e CHILD_CHAIN_NAME="orbit-dev-test" -e MAX_DATA_SIZE=104857 -e OWNER_ADDRESS=$l3owneraddress -e WASM_MODULE_ROOT=$wasmroot -e SEQUENCER_ADDRESS=$l3sequenceraddress -e AUTHORIZE_VALIDATORS=10 -e CHILD_CHAIN_CONFIG_PATH="/config/l3_chain_config.json" -e CHAIN_DEPLOYMENT_INFO="/config/l3deployment.json" -e CHILD_CHAIN_INFO="/config/deployed_l3_chain_info.json" -e LIGHT_CLIENT_ADDR=$lightClientAddrForL3 $EXTRA_L3_DEPLOY_FLAG rollupcreator create-rollup-testnode
-        docker compose run --entrypoint sh rollupcreator -c "jq [.[]] /config/deployed_l3_chain_info.json > /config/l3_chain_info.json"
+        docker compose run -e DEPLOYER_PRIVKEY=$l3ownerkey -e PARENT_CHAIN_RPC="http://sequencer:8547" -e PARENT_CHAIN_ID=412346 -e CHILD_CHAIN_NAME="orbit-dev-test" -e MAX_DATA_SIZE=104857 -e OWNER_ADDRESS=$l3owneraddress -e WASM_MODULE_ROOT=$wasmroot -e SEQUENCER_ADDRESS=$l3sequenceraddress -e AUTHORIZE_VALIDATORS=10 -e CHILD_CHAIN_CONFIG_PATH="/dojima-config/l3_chain_config.json" -e CHAIN_DEPLOYMENT_INFO="/dojima-config/l3deployment.json" -e CHILD_CHAIN_INFO="/dojima-config/deployed_l3_chain_info.json" -e LIGHT_CLIENT_ADDR=$lightClientAddrForL3 $EXTRA_L3_DEPLOY_FLAG rollupcreator create-rollup-testnode
+        docker compose run --entrypoint sh rollupcreator -c "jq [.[]] /dojima-config/deployed_l3_chain_info.json > /dojima-config/l3_chain_info.json"
 
         echo == Funding l3 funnel and dev key
         docker compose up --wait l3node sequencer
@@ -631,7 +688,7 @@ if $force_init; then
         if $l3_token_bridge; then
             echo == Deploying L2-L3 token bridge
             deployer_key=`printf "%s" "user_token_bridge_deployer" | openssl dgst -sha256 | sed 's/^.*= //'`
-            rollupAddress=`docker compose run --entrypoint sh poster -c "jq -r '.[0].rollup.rollup' /config/deployed_l3_chain_info.json | tail -n 1 | tr -d '\r\n'"`
+            rollupAddress=`docker compose run --entrypoint sh poster -c "jq -r '.[0].rollup.rollup' /dojima-config/deployed_l3_chain_info.json | tail -n 1 | tr -d '\r\n'"`
             l2Weth=""
             if $tokenbridge; then
                 # we deployed an L1 L2 token bridge

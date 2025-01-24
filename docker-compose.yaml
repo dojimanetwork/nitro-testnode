@@ -18,7 +18,7 @@ services:
     env_file:
       - ./blockscout/nitro.env
     environment:
-      ETHEREUM_JSONRPC_VARIANT: "geth"
+      ETHEREUM_JSONRPC_VARIANT: "dojima-chain"
       ETHEREUM_JSONRPC_HTTP_URL: http://sequencer:8547/
       INDEXER_DISABLE_PENDING_TRANSACTIONS_FETCHER: "true"
       DATABASE_URL: postgresql://postgres:@postgres:5432/blockscout
@@ -43,44 +43,45 @@ services:
     image: redis:6.2.6
     ports:
       - "127.0.0.1:6379:6379"
-
-  geth:
-    image: ethereum/client-go:latest
-    ports:
-      - "127.0.0.1:8545:8545"
-      - "127.0.0.1:8551:8551"
-      - "127.0.0.1:8546:8546"
-      - "127.0.0.1:30303:30303"
+  dojimachain:
+    hostname: dojima-chain
+    image: dojimanetwork1401/dojimachain:1dd510309_3.0.0
     volumes:
-      - "l1data:/datadir"
-      - "l1keystore:/keystore"
-      - "config:/config"
-    command:
-      - --keystore=/keystore
-      - --http
-      - --datadir=/datadir
-      - --http.addr=0.0.0.0
-      - --authrpc.vhosts=*
-      - --authrpc.port=8551
-      - --authrpc.addr=0.0.0.0
-      - --http.vhosts=*
-      - --http.api=engine,personal,eth,net,web3
-      - --http.corsdomain=*
-      - --ws
-      - --ws.addr=0.0.0.0
-      - --ws.api=personal,eth,net,web3,debug,txpool
-      - --allow-insecure-unlock
-      - --unlock=0x3f1Eae7D46d88F08fc2F8ed27FCb2AB183EB2d0E
-      - --password=/datadir/passphrase
-      - --authrpc.jwtsecret=/config/jwt.hex
-      - --nodiscover
-      - --syncmode=full
-      - --state.scheme=hash
-      - --dev
-      - --dev.period=1
-      - --mine
-      - --miner.etherbase=0x3f1Eae7D46d88F08fc2F8ed27FCb2AB183EB2d0E
-      - --gcmode=archive
+      - "dojima-data:/dojima-data"
+      - "dojima-keystore:/dojima-keystore"
+      - "dojima-config:/dojima-config"
+    ports:
+      - 9549:9549
+      - 8550:8550
+      - 30303:30303
+      - 9546:9546
+    env_file:
+      - path: "./config/.hermes.env"
+        required: false
+    command: |
+      --mine
+      --datadir=/dojima-data
+      --keystore=/dojima-keystore
+      --unlock=0x0Fe14f0612fdcbef05dCb8bD33DCBD02DAfA46fA
+      --miner.etherbase=0x0Fe14f0612fdcbef05dCb8bD33DCBD02DAfA46fA
+      --password=/dojima-data/passphrase
+      --allow-insecure-unlock
+      --http
+      --http.api=personal,db,eth,net,web3,txpool,miner,admin,dojimachain
+      --http.addr=0.0.0.0
+      --port=30303
+      --http.port=9549
+      --http.corsdomain="*"
+      --http.vhosts=*
+      --ws
+      --ws.origins="*"
+      --ws.port=9546
+      --ws.addr=0.0.0.0
+      --ws.api=personal,db,eth,net,web3,txpool,miner,admin,dojimachain
+      --genesisfile=/dojima-config/dojima_genesis.json
+      --genesis
+      --syncmode=full
+      --gcmode=archive
 
   # Creates a genesis state for the beacon chain using a YAML configuration file and
   # a deterministic set of validators
@@ -95,8 +96,8 @@ services:
       - --genesis-time-delay=15
       - --output-ssz=/consensus/genesis.ssz
       - --chain-config-file=/config/prysm.yaml
-      - --geth-genesis-json-in=/config/geth_genesis.json
-      - --geth-genesis-json-out=/config/geth_genesis.json
+      - --dojima-genesis-json-in=/config/dojima_genesis.json
+      - --dojima-genesis-json-out=/config/dojima_genesis.json
     volumes:
       - "consensus:/consensus"
       - "config:/config"
@@ -118,12 +119,12 @@ services:
       - --rpc-host=0.0.0.0
       - --grpc-gateway-host=0.0.0.0
       - --chain-id=1337
-      - --execution-endpoint=http://geth:8551
+      - --execution-endpoint=http://dojima-chain:8551
       - --accept-terms-of-use
       - --jwt-secret=/config/jwt.hex
       - --suggested-fee-recipient=0x000000000000000000000000000000000000dEaD
     depends_on:
-      geth:
+      dojimachain:
         condition: service_started
       create_beacon_chain_genesis:
         condition: service_completed_successfully
@@ -167,7 +168,7 @@ services:
       - "tokenbridge-data:/tokenbridge-data"
     command: --conf.file /config/sequencer_config.json --node.feed.output.enable --node.feed.output.port 9642  --http.api net,web3,eth,txpool,debug --node.seq-coordinator.my-url  ws://sequencer:8548 --graphql.enable --graphql.vhosts * --graphql.corsdomain *
     depends_on:
-      - geth
+      - dojimachain
 
   sequencer-on-espresso:
     pid: host # allow debugging
@@ -184,7 +185,7 @@ services:
       - "tokenbridge-data:/tokenbridge-data"
     command: --conf.file /config/sequencer_config.json --node.feed.output.enable --node.feed.output.port 9642  --http.api net,web3,eth,txpool,debug --node.seq-coordinator.my-url  ws://sequencer:8548 --graphql.enable --graphql.vhosts * --graphql.corsdomain *
     depends_on:
-      - geth
+      - dojimachain
 
   sequencer-espresso-finality:
     pid: host # allow debugging
@@ -201,7 +202,7 @@ services:
       - "tokenbridge-data:/tokenbridge-data"
     command: --conf.file /config/espresso_finality_sequencer_config.json --node.feed.output.enable --node.feed.output.port 9642  --http.api net,web3,eth,txpool,debug --node.seq-coordinator.my-url  ws://sequencer:8548 --graphql.enable --graphql.vhosts * --graphql.corsdomain *
     depends_on:
-      - geth
+      - dojimachain
 
   sequencer_b:
     pid: host # allow debugging
@@ -215,7 +216,7 @@ services:
       - "config:/config"
     command: --conf.file /config/sequencer_config.json --node.seq-coordinator.my-url ws://sequencer_b:8548
     depends_on:
-      - geth
+      - dojimachain
       - redis
 
   sequencer_c:
@@ -230,7 +231,7 @@ services:
       - "config:/config"
     command: --conf.file /config/sequencer_config.json --node.seq-coordinator.my-url ws://sequencer_c:8548
     depends_on:
-      - geth
+      - dojimachain
       - redis
 
   sequencer_d:
@@ -245,7 +246,7 @@ services:
       - "config:/config"
     command: --conf.file /config/sequencer_config.json --node.seq-coordinator.my-url ws://sequencer_d:8548
     depends_on:
-      - geth
+      - dojimachain
       - redis
 
   staker-unsafe:
@@ -278,7 +279,7 @@ services:
       - "config:/config"
     command: --conf.file /config/poster_config.json
     depends_on:
-      - geth
+      - dojimachain
       - redis
 
   poster_b:
@@ -294,7 +295,7 @@ services:
       - "config:/config"
     command: --conf.file /config/poster_config.json
     depends_on:
-      - geth
+      - dojimachain
       - redis
 
   poster_c:
@@ -310,7 +311,7 @@ services:
       - "config:/config"
     command: --conf.file /config/poster_config.json
     depends_on:
-      - geth
+      - dojimachain
       - redis
 
   validator:
@@ -361,6 +362,8 @@ services:
     volumes:
       - "l1keystore:/home/user/l1keystore"
       - "config:/config"
+      - "dojima-keystore:/home/user/dojima-keystore"
+      - "dojima-config:/dojima-config"
       - "tokenbridge-data:/tokenbridge-data"
       - "espresso-config:/espresso-config"
 
@@ -381,7 +384,7 @@ services:
 
   tokenbridge:
     depends_on:
-      - geth
+      - dojimachain
       - sequencer
     pid: host
     build:
@@ -390,14 +393,14 @@ services:
         TOKEN_BRIDGE_BRANCH: ${TOKEN_BRIDGE_BRANCH:-}
     environment:
       - ARB_URL=http://sequencer:8547
-      - ETH_URL=http://geth:8545
+      - ETH_URL=http://dojima-chian:9549
     volumes:
       - "tokenbridge-data:/workspace"
       - /var/run/docker.sock:/var/run/docker.sock
 
   rollupcreator:
     depends_on:
-      - geth
+      - dojimachain
       - sequencer
     pid: host
     build:
@@ -430,7 +433,7 @@ services:
       - ESPRESSO_DEPLOYER_ALT_MNEMONICS
       - ESPRESSO_SEQUENCER_DEPLOYER_ALT_INDICES
     depends_on:
-      - geth
+      - dojimachain
       - sequencer
     healthcheck:
       test:
@@ -457,7 +460,7 @@ services:
     # use the sequencer_config.json but override the sequencer settings and the forwarding settings.
     command: --conf.file /config/sequencer_config.json --node.sequencer=false --node.batch-poster.enable=false --execution.sequencer.enable=false --execution.forwarding-target http://sequencer:8547 --node.delayed-sequencer.enable=false --node.feed.input.url ws://sequencer:9642 --http.port 8547 --http.api net,web3,arb,debug,net,eth --ws.port 8548
     depends_on:
-      - geth
+      - dojimachain
       - sequencer
     healthcheck:
       test: ["CMD-SHELL", "curl -fL http://localhost:8947 || exit 1"]
@@ -515,6 +518,9 @@ services:
 
 volumes:
   l1data:
+  dojima-data:
+  dojima-keystore:
+  dojima-config:
   consensus:
   l1keystore:
   seqdata:

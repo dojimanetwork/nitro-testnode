@@ -2,7 +2,7 @@ import { hideBin } from "yargs/helpers";
 import Yargs from "yargs/yargs";
 import { stressOptions } from "./stress";
 import { redisReadCommand, redisInitCommand } from "./redis";
-import { writeConfigCommand, writeGethGenesisCommand, writePrysmCommand, writeL2ChainConfigCommand, writeL3ChainConfigCommand, writeL2DASCommitteeConfigCommand, writeL2DASMirrorConfigCommand, writeL2DASKeysetConfigCommand } from "./config";
+import { writeConfigCommand, writeGethGenesisCommand, writePrysmCommand, writeL2ChainConfigCommand, writeL3ChainConfigCommand, writeL2DASCommitteeConfigCommand, writeL2DASMirrorConfigCommand, writeL2DASKeysetConfigCommand, writeDojimaEnvCommand, writeDojimaConfigCommand } from "./config";
 import {
   printAddressCommand,
   namedAccountHelpString,
@@ -28,11 +28,12 @@ async function main() {
   await Yargs(hideBin(process.argv))
     .options({
       redisUrl: { string: true, default: "redis://redis:6379" },
-      l1url: { string: true, default: "ws://geth:8546" },
+      l1url: { string: true, default: "ws://dojima-chain:9546" },
       l2url: { string: true, default: "ws://sequencer:8548" },
       l3url: { string: true, default: "ws://l3node:3348" },
       validationNodeUrl: { string: true, default: "ws://validation_node:8549" },
-      l2owner: { string: true, default: "0x3f1Eae7D46d88F08fc2F8ed27FCb2AB183EB2d0E" },
+      dojimaUrl: { string: true, default: "ws://dojima-chain:9546" },
+      l2owner: { string: true, default: "0xe856CcbFb97c5c211a3Cc06163734833147168e0%" },
       committeeMember: { string: true, default: "not_set" },
     })
     .options(stressOptions)
@@ -68,6 +69,8 @@ async function main() {
     .command(redisReadCommand)
     .command(redisInitCommand)
     .command(waitForSyncCommand)
+    .command(writeDojimaEnvCommand)
+    .command(writeDojimaConfigCommand)
     .strict()
     .demandCommand(1, "a command must be specified")
     .epilogue(namedAccountHelpString)

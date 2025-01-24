@@ -2,6 +2,8 @@ import * as fs from "fs";
 import * as consts from "./consts";
 import { ethers } from "ethers";
 import { namedAccount, namedAddress } from "./accounts";
+import {DojimaConfig} from "./dojima_config";
+import {dojima_passphrase} from "./consts";
 
 const path = require("path");
 
@@ -41,7 +43,7 @@ SLOTS_PER_EPOCH: 6
 # Deposit contract
 DEPOSIT_CONTRACT_ADDRESS: 0x4242424242424242424242424242424242424242
     `;
-  fs.writeFileSync(path.join(consts.configpath, "prysm.yaml"), prysm);
+  fs.writeFileSync(path.join(consts.dojima_config_path, "prysm.yaml"), prysm);
 }
 
 function writeGethGenesisConfig(argv: any) {
@@ -155,13 +157,13 @@ function writeGethGenesisConfig(argv: any) {
     }
     `;
   fs.writeFileSync(
-    path.join(consts.configpath, "geth_genesis.json"),
+    path.join(consts.dojima_config_path, "dojima_genesis.json"),
     gethConfig
   );
   const jwt = `0x98ea6e4f216f2fb4b69fff9b3a44842c38686ca685f3f55dc48c5d3fb1107be4`;
-  fs.writeFileSync(path.join(consts.configpath, "jwt.hex"), jwt);
+  fs.writeFileSync(path.join(consts.dojima_config_path, "jwt.hex"), jwt);
   const val_jwt = `0xe3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`;
-  fs.writeFileSync(path.join(consts.configpath, "val_jwt.hex"), val_jwt);
+  fs.writeFileSync(path.join(consts.dojima_config_path, "val_jwt.hex"), val_jwt);
 }
 
 type ChainInfo = {
@@ -170,15 +172,15 @@ type ChainInfo = {
 
 // Define a function to return ChainInfo
 function getChainInfo(): ChainInfo {
-  const filePath = path.join(consts.configpath, "l2_chain_info.json");
+  const filePath = path.join(consts.dojima_config_path, "l2_chain_info.json");
   const fileContents = fs.readFileSync(filePath).toString();
   const chainInfo: ChainInfo = JSON.parse(fileContents);
   return chainInfo;
 }
 
 function writeConfigs(argv: any) {
-  const valJwtSecret = path.join(consts.configpath, "val_jwt.hex");
-  const chainInfoFile = path.join(consts.configpath, "l2_chain_info.json");
+  const valJwtSecret = path.join(consts.dojima_config_path, "val_jwt.hex");
+  const chainInfoFile = path.join(consts.dojima_config_path, "l2_chain_info.json");
   let baseConfig = {
     "parent-chain": {
       connection: {
@@ -196,8 +198,8 @@ function writeConfigs(argv: any) {
         },
         "parent-chain-wallet": {
           account: namedAddress("validator"),
-          password: consts.l1passphrase,
-          pathname: consts.l1keystore,
+          password: consts.dojima_passphrase,
+          pathname: consts.dojima_keystore_path,
         },
         "disable-challenge": false,
         enable: false,
@@ -230,8 +232,8 @@ function writeConfigs(argv: any) {
         "l1-block-bound": "ignore",
         "parent-chain-wallet": {
           account: namedAddress("sequencer"),
-          password: consts.l1passphrase,
-          pathname: consts.l1keystore,
+          password: consts.dojima_passphrase,
+          pathname: consts.dojima_keystore_path,
         },
         "data-poster": {
           "redis-signer": {
@@ -351,18 +353,18 @@ function writeConfigs(argv: any) {
         })
       );
       fs.writeFileSync(
-        path.join(consts.configpath, "validation_node_config.json"),
+        path.join(consts.dojima_config_path, "validation_node_config.json"),
         JSON.stringify(validationNodeConfig)
       );
       if (argv.espresso) {
         //if we are attempting to start a new espresso sequencer we should also give that validator a val_jwt file as it hasn't been written to the espresso-config.
         const val_jwt = `0xe3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`;
-        fs.writeFileSync(path.join(consts.configpath, "val_jwt.hex"), val_jwt);
+        fs.writeFileSync(path.join(consts.dojima_config_path, "val_jwt.hex"), val_jwt);
       }
     }
 
     fs.writeFileSync(
-      path.join(consts.configpath, "sequencer_config.json"),
+      path.join(consts.dojima_config_path, "sequencer_config.json"),
       JSON.stringify(simpleConfig)
     );
   } else {
@@ -376,14 +378,14 @@ function writeConfigs(argv: any) {
     }
     let validconfJSON = JSON.stringify(validatorConfig);
     fs.writeFileSync(
-      path.join(consts.configpath, "validator_config.json"),
+      path.join(consts.dojima_config_path, "validator_config.json"),
       validconfJSON
     );
 
     let unsafeStakerConfig = JSON.parse(validconfJSON);
     unsafeStakerConfig.node.staker.dangerous["without-block-validator"] = true;
     fs.writeFileSync(
-      path.join(consts.configpath, "unsafe_staker_config.json"),
+      path.join(consts.dojima_config_path, "unsafe_staker_config.json"),
       JSON.stringify(unsafeStakerConfig)
     );
 
@@ -408,12 +410,12 @@ function writeConfigs(argv: any) {
         namespace: 412346,
       };
       fs.writeFileSync(
-        path.join(consts.configpath, "espresso_finality_sequencer_config.json"),
+        path.join(consts.dojima_config_path, "espresso_finality_sequencer_config.json"),
         JSON.stringify(sequencerConfig)
       );
     } else {
       fs.writeFileSync(
-        path.join(consts.configpath, "sequencer_config.json"),
+        path.join(consts.dojima_config_path, "sequencer_config.json"),
         JSON.stringify(sequencerConfig)
       );
     }
@@ -432,7 +434,7 @@ function writeConfigs(argv: any) {
       posterConfig.node["data-availability"]["rpc-aggregator"].enable = true;
     }
     fs.writeFileSync(
-      path.join(consts.configpath, "poster_config.json"),
+      path.join(consts.dojima_config_path, "poster_config.json"),
       JSON.stringify(posterConfig)
     );
   }
@@ -443,7 +445,7 @@ function writeConfigs(argv: any) {
   l3Config.node["batch-poster"]["parent-chain-wallet"].account =
     namedAddress("l3sequencer");
   l3Config.chain.id = 333333;
-  const l3ChainInfoFile = path.join(consts.configpath, "l3_chain_info.json");
+  const l3ChainInfoFile = path.join(consts.dojima_config_path, "l3_chain_info.json");
   l3Config.chain["info-files"] = [l3ChainInfoFile];
   l3Config.node.staker.enable = true;
   l3Config.node.staker["use-smart-contract-wallet"] = true;
@@ -460,7 +462,7 @@ function writeConfigs(argv: any) {
     l3Config.node.dangerous["no-sequencer-coordinator"] = true;
   }
   fs.writeFileSync(
-    path.join(consts.configpath, "l3node_config.json"),
+    path.join(consts.dojima_config_path, "l3node_config.json"),
     JSON.stringify(l3Config)
   );
 
@@ -486,7 +488,7 @@ function writeConfigs(argv: any) {
     })
   );
   fs.writeFileSync(
-    path.join(consts.configpath, "validation_node_config.json"),
+    path.join(consts.dojima_config_path, "validation_node_config.json"),
     JSON.stringify(validationNodeConfig)
   );
 }
@@ -527,7 +529,7 @@ function writeL2ChainConfig(argv: any) {
   }
   const l2ChainConfigJSON = JSON.stringify(l2ChainConfig);
   fs.writeFileSync(
-    path.join(consts.configpath, "l2_chain_config.json"),
+    path.join(consts.dojima_config_path, "l2_chain_config.json"),
     l2ChainConfigJSON
   );
 }
@@ -569,7 +571,7 @@ function writeL3ChainConfig(argv: any) {
   }
   const l3ChainConfigJSON = JSON.stringify(l3ChainConfig);
   fs.writeFileSync(
-    path.join(consts.configpath, "l3_chain_config.json"),
+    path.join(consts.dojima_config_path, "l3_chain_config.json"),
     l3ChainConfigJSON
   );
 }
@@ -602,7 +604,7 @@ function writeL2DASCommitteeConfig(argv: any) {
   const l2DASCommitteeConfigJSON = JSON.stringify(l2DASCommitteeConfig);
 
   fs.writeFileSync(
-    path.join(consts.configpath, "l2_das_committee.json"),
+    path.join(consts.dojima_config_path, "l2_das_committee.json"),
     l2DASCommitteeConfigJSON
   );
 }
@@ -637,7 +639,7 @@ function writeL2DASMirrorConfig(argv: any, sequencerInboxAddr: string) {
   const l2DASMirrorConfigJSON = JSON.stringify(l2DASMirrorConfig);
 
   fs.writeFileSync(
-    path.join(consts.configpath, "l2_das_mirror.json"),
+    path.join(consts.dojima_config_path, "l2_das_mirror.json"),
     l2DASMirrorConfigJSON
   );
 }
@@ -649,7 +651,7 @@ function writeL2DASKeysetConfig(argv: any) {
   const l2DASKeysetConfigJSON = JSON.stringify(l2DASKeysetConfig);
 
   fs.writeFileSync(
-    path.join(consts.configpath, "l2_das_keyset.json"),
+    path.join(consts.dojima_config_path, "l2_das_keyset.json"),
     l2DASKeysetConfigJSON
   );
 }
@@ -784,3 +786,60 @@ export const writeL2DASKeysetConfigCommand = {
     writeL2DASKeysetConfig(argv);
   },
 };
+
+function writeDojimaENV(argv: any) {
+  const config: DojimaConfig = {
+    dojHost: argv.dojimaRpcUrl,
+    dojimaChainId: argv.dojimaChainId,
+    dojimaGrpcUrl: argv.dojimaGrpcUrl,
+    dojimaRpcUrl: argv.dojimaRpcUrl,
+    dojimaSpanEnable: argv.dojimaSpanEnable,
+    dojimaSpanPollInterval: argv.dojimaSpanPollInterval,
+  }
+
+  const dojimaEnv = convertToEnv(config);
+  // if hermes env file exists, append to it
+  if (fs.existsSync(consts.hermes_env)) {
+    fs.appendFileSync(consts.hermes_env, '\n' + dojimaEnv)
+  } else {
+    fs.writeFileSync(consts.hermes_env, dojimaEnv)
+  }
+}
+
+function convertToEnv(config: any) {
+  // Convert config object to env format
+  const env = Object.entries(config)
+      .map(([key, value]) => {
+        // Convert camelCase to SCREAMING_SNAKE_CASE
+        const envKey = key.replace(/[A-Z]/g, letter => `_${letter}`).toUpperCase();
+        // Add quotes around string values if they don't already have them
+        const envValue = typeof value === 'string' && !value.startsWith('"') ?
+            `"${value}"` : value;
+        return `${envKey}=${envValue}`;
+      })
+      .join('\n');
+
+  return env;
+}
+
+export const writeDojimaEnvCommand = {
+  command: "write-dojima-env",
+  describe: "sets dojima environment variable in hermes env file",
+  builder: {
+    dojimaChainId: { number: true, default: 184 },
+    dojimaGrpcUrl: { string: true, default: "hermesnode:9090" },
+    dojimaSpanEnable: { boolean: true, default: false },
+    dojimaSpanPollInterval: { string: true, default: "1s" },
+  },
+  handler: async (argv: any) => {
+    writeDojimaENV(argv);
+  },
+};
+
+export const writeDojimaConfigCommand = {
+  command: "write-dojima-config",
+  describe: "writes dojima genesis config file",
+  handler: (argv: any) => {
+    fs.writeFileSync(path.join(consts.dojima_config_path, "dojima_genesis.json"), consts.dojima_genesis_testnet)
+  }
+}

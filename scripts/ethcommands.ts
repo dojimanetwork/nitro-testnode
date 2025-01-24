@@ -162,7 +162,7 @@ export const bridgeFundsCommand = {
   handler: async (argv: any) => {
     const deploydata = JSON.parse(
       fs
-        .readFileSync(path.join(consts.configpath, "deployment.json"))
+        .readFileSync(path.join(consts.dojima_config_path, "deployment.json"))
         .toString()
     );
     const inboxAddr = ethers.utils.hexlify(deploydata.inbox);
@@ -194,7 +194,7 @@ export const bridgeToL3Command = {
   handler: async (argv: any) => {
     const deploydata = JSON.parse(
       fs
-        .readFileSync(path.join(consts.configpath, "l3deployment.json"))
+        .readFileSync(path.join(consts.dojima_config_path, "l3deployment.json"))
         .toString()
     );
     const inboxAddr = ethers.utils.hexlify(deploydata.inbox);
@@ -226,7 +226,7 @@ export const bridgeNativeTokenToL3Command = {
   handler: async (argv: any) => {
     const deploydata = JSON.parse(
       fs
-        .readFileSync(path.join(consts.configpath, "l3deployment.json"))
+        .readFileSync(path.join(consts.dojima_config_path, "l3deployment.json"))
         .toString()
     );
     const inboxAddr = ethers.utils.hexlify(deploydata.inbox);
@@ -255,7 +255,7 @@ export const transferL3ChainOwnershipCommand = {
     // get inbox address from config file
     const deploydata = JSON.parse(
       fs
-        .readFileSync(path.join(consts.configpath, "l3deployment.json"))
+        .readFileSync(path.join(consts.dojima_config_path, "l3deployment.json"))
         .toString()
     );
     const inboxAddr = ethers.utils.hexlify(deploydata.inbox);
@@ -452,7 +452,7 @@ export const sendL1Command = {
     data: { string: true, describe: "data" },
   },
   handler: async (argv: any) => {
-    argv.provider = new ethers.providers.WebSocketProvider(argv.l1url);
+    argv.provider = new ethers.providers.WebSocketProvider(argv.dojimaUrl);
 
     await runStress(argv, sendTransaction);
 
@@ -552,14 +552,14 @@ export const setValidKeysetCommand = {
         argv.provider = new ethers.providers.WebSocketProvider(argv.l1url);
         const deploydata = JSON.parse(
             fs
-                .readFileSync(path.join(consts.configpath, "deployment.json"))
+                .readFileSync(path.join(consts.dojima_config_path, "deployment.json"))
                 .toString()
         );
         const sequencerInboxAddr = ethers.utils.hexlify(deploydata["sequencer-inbox"]);
         const upgradeExecutorAddr = ethers.utils.hexlify(deploydata["upgrade-executor"]);
 
         const keyset = fs
-            .readFileSync(path.join(consts.configpath, "l2_das_keyset.hex"))
+            .readFileSync(path.join(consts.dojima_config_path, "l2_das_keyset.hex"))
             .toString()
 
         await setValidKeyset(argv, upgradeExecutorAddr, sequencerInboxAddr, keyset)

@@ -3,6 +3,7 @@ import * as consts from "./consts";
 import * as fs from "fs";
 import * as crypto from "crypto";
 import { runStress } from "./stress";
+import {dojima_hermes_mnemonic, dojima_keystore_path, dojima_passphrase} from "./consts";
 const path = require("path");
 
 const specialAccounts = 7;
@@ -10,9 +11,9 @@ const specialAccounts = 7;
 async function writeAccounts() {
   for (let i = 0; i < specialAccounts; i++) {
     const wallet = specialAccount(i)
-    let walletJSON = await wallet.encrypt(consts.l1passphrase);
+    let walletJSON = await wallet.encrypt(consts.dojima_passphrase);
     fs.writeFileSync(
-      path.join(consts.l1keystore, wallet.address + ".key"),
+      path.join(consts.dojima_keystore_path, wallet.address + ".key"),
       walletJSON
     );
   }
@@ -20,8 +21,8 @@ async function writeAccounts() {
 
 function specialAccount(index: number): ethers.Wallet {
   return ethers.Wallet.fromMnemonic(
-    consts.l1mnemonic,
-    "m/44'/60'/0'/0/" + index
+    consts.dojima_hermes_mnemonic,
+    "m/44'/184'/0'/0/" + index
   );
 }
 
