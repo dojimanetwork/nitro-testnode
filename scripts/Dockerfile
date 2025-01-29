@@ -1,5 +1,13 @@
 FROM node:18-bullseye-slim
 WORKDIR /workspace
+RUN apt-get update && \
+    apt-get install -y \
+    python3 \
+    python3-pip \
+    make \
+    gcc \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
 COPY ./package.json ./yarn.lock ./
 RUN yarn
 COPY ./*.ts ./tsconfig.json ./

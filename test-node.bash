@@ -41,6 +41,15 @@ else
 fi
 
 run=true
+run_dojima=true
+run_geth=true
+run_crawler=true
+run_hermes=true
+run_narada=true
+run_aa=false
+span_enable=true
+create_doj_pool=false
+create_eth_pool=false
 validate=false
 detach=false
 blockscout=false
@@ -59,10 +68,13 @@ l3_token_bridge=false
 l3_custom_fee_token_decimals=18
 batchposters=1
 devprivkey=b6b15c8cb491557369f3c7d2c287b053eb229daa9c22138887752191c9520659
-l1chainid=1337
+l1chainid=184
 simple=true
 simple_with_validator=false
 l2anytrust=false
+run_operator_gateway=true
+
+geth_inbound_state_sender=""
 
 # Use the dev versions of nitro/blockscout
 dev_nitro=false
@@ -75,11 +87,112 @@ build_utils=false
 force_build_utils=false
 build_node_images=false
 
+dojima_config_path="/config"
+dojima_keystore_path="/l1keystore"
+dojima_data_path="/dojima-data"
+
+# geth paths
+geth_config_path="/config"
+geth_keystore_path="/keystore"
+geth_data_path="/datadir"
+
+hermes_env="./config/.hermes.env"
+
+generate_env_file() {
+    cd scripts
+
+    if $run_hermes; then
+        echo "== Generate hermes env"
+        node index.js write-hermes-env
+    fi
+
+    if $run_dojima; then
+        echo "== Generate dojima env"
+        node index.js write-dojima-env --dojimaSpanEnable=$span_enable
+    fi
+
+    if $run_geth; then
+        echo "== Generate ethereum env"
+        node index.js write-eth-env --inboundStateSender=$geth_inbound_state_sender
+    fi
+
+    if $run_narada; then
+        narada_flags=""
+        if $run_dojima; then
+            narada_flags="$narada_flags --includeDojChain"
+        fi
+
+        if $run_geth; then
+            narada_flags="$narada_flags --includeEthChain"
+        fi
+
+        if $run_aa; then
+            narada_flags="$narada_flags --includeArtheraChain"
+        fi
+
+        echo "== Generate narada env"
+        node index.js write-narada-env $narada_flags
+    fi
+
+    cd ..
+}
+
+register_chain() {
+    local chainId=""
+    local chainTicker=""
+    local rpcUrl=""
+    local wsUrl=""
+
+    # Parse named parameters
+    while [[ "$#" -gt 0 ]]; do
+        case $1 in
+            --chainId) chainId="$2"; shift ;;
+            --chainTicker) chainTicker="$2"; shift ;;
+            --rpcUrl) rpcUrl="$2"; shift ;;
+            --wsUrl) wsUrl="$2"; shift ;;
+            *) echo "Unknown parameter: $1"; return 1 ;;
+        esac
+        shift
+    done
+
+    # Validate required parameters
+    if [[ -z "$chainId" || -z "$chainTicker" ]]; then
+        echo "Error: --chainId and --chainTicker are required."
+        return 1
+    fi
+
+    sleep 5
+    echo "== Registering chain data"
+    docker compose run scripts register-chain --chainId "$chainId" --chainTicker "$chainTicker"
+
+    sleep 5
+    echo "== Creating endpoint"
+    docker compose run scripts create-endpoint --chainId "$chainId" --chainTicker "$chainTicker" --rpcUrl "$rpcUrl" --wsUrl "$wsUrl"
+}
+
+start_operator() {
+    echo "== Starting operator gateway nginx"
+    docker compose up --wait operator-gateway-nginx
+
+    echo "== Starting operator gateway"
+    docker compose up --wait operator-gateway
+}
+
+register_client() {
+    local chainId="$1"
+    local chainTicker="$2"
+    local rpcUrl="$3"
+    local wsUrl="$4"
+
+    echo "==Registering client for $chainTicker"
+    docker compose run scripts register-client --chainId "$chainId" --chainTicker "$chainTicker" --rpcUrl "$rpcUrl" --wsUrl "$wsUrl"
+}
+
 while [[ $# -gt 0 ]]; do
     case $1 in
         --init)
             if ! $force_init; then
-                echo == Warning! this will remove all previous data
+                echo "== Warning! this will remove all previous data"
                 read -p "are you sure? [y/n]" -n 1 response
                 if [[ $response == "y" ]] || [[ $response == "Y" ]]; then
                     force_init=true
@@ -212,7 +325,7 @@ while [[ $# -gt 0 ]]; do
             ;;
         --pos)
             consensusclient=true
-            l1chainid=1337
+            l1chainid=184
             shift
             ;;
         --l3node)
@@ -275,6 +388,43 @@ while [[ $# -gt 0 ]]; do
             simple=false
             shift
             ;;
+        --no-dojima)
+            run_dojima=false
+            create_doj_pool=false
+            shift
+            ;;
+        --dojimaSpanEnable)
+            span_enable=true
+            shift
+            ;;
+        --no-operator-gateway)
+            run_operator_gateway=false
+            shift
+            ;;
+        --no-geth)
+            run_geth=false
+            shift
+            ;;
+        --no-crawler)
+            run_crawler=false
+            shift
+            ;;
+        --no-hermes)
+            run_hermes=false
+            create_doj_pool=false
+            create_eth_pool=false
+            shift
+            ;;
+        --no-narada)
+            run_narada=false
+            create_doj_pool=false
+            create_eth_pool=false
+            shift
+            ;;
+        --run-arthera)
+            run_aa=true
+            shift
+            ;;
         *)
             echo Usage: $0 \[OPTIONS..]
             echo        $0 script [SCRIPT-ARGS]
@@ -309,6 +459,14 @@ while [[ $# -gt 0 ]]; do
             echo --build-utils         rebuild scripts, rollupcreator, token bridge docker images
             echo --no-build-utils      don\'t rebuild scripts, rollupcreator, token bridge docker images
             echo --force-build-utils   force rebuilding utils, useful if NITRO_CONTRACTS_ or TOKEN_BRIDGE_BRANCH changes
+            echo --no-dojima   Do not run the dojima node
+            echo --dojimaSpanEnable   Enable span for dojima
+            echo --no-operator-gateway  Do not run the operator gateway
+            echo --no-geth Do not run geth
+            echo --no-crawler Do not run crawler
+            echo --no-hermes Do not run hermes
+            echo --no-narada Do not run narada
+            echo --run-arthera Run the arthera chain
             echo
             echo script runs inside a separate docker. For SCRIPT-ARGS, run $0 script --help
             exit 0
@@ -388,7 +546,7 @@ if $espresso; then
 fi
 
 if $dev_nitro && $build_dev_nitro; then
-  echo == Building Nitro
+  echo "== Building Nitro"
   if ! [ -n "${NITRO_SRC+set}" ]; then
       NITRO_SRC=`dirname $PWD`
   fi
@@ -401,7 +559,7 @@ if $dev_nitro && $build_dev_nitro; then
 fi
 if $dev_blockscout && $build_dev_blockscout; then
   if $blockscout; then
-    echo == Building Blockscout
+    echo "== Building Blockscout"
     docker build blockscout -t blockscout -f blockscout/docker/Dockerfile
   fi
 fi
@@ -444,7 +602,7 @@ if $build_node_images; then
 fi
 
 if $force_init; then
-    echo == Removing old data..
+    echo "== Removing old data.."
     docker compose down
     leftoverContainers=`docker container ls -a --filter label=com.docker.compose.project=nitro-testnode -q | xargs echo`
     if [ `echo $leftoverContainers | wc -w` -gt 0 ]; then
@@ -456,47 +614,163 @@ if $force_init; then
         docker volume rm $leftoverVolumes
     fi
 
-    echo == Generating l1 keys
-    docker compose run scripts write-accounts
-    docker compose run --entrypoint sh geth -c "echo passphrase > /datadir/passphrase"
-    docker compose run --entrypoint sh geth -c "chown -R 1000:1000 /keystore"
-    docker compose run --entrypoint sh geth -c "chown -R 1000:1000 /config"
+    # remove the config/.hermes.env file if it exists
+    if [ -f $hermes_env ]; then
+        echo "== Removing old hermes env file"
+        rm $hermes_env
+    fi
 
-    echo == Writing geth configs
-    docker compose run scripts write-geth-genesis-config
+    if $run_geth; then
+        echo "== Generating geth keys"
+        docker compose run scripts write-geth-accounts
+
+        docker compose run --entrypoint sh geth -c "echo passphrase > $geth_data_path/passphrase"
+        docker compose run --entrypoint sh geth -c "chown -R 1000:1000 $geth_keystore_path"
+        docker compose run --entrypoint sh geth -c "chown -R 1000:1000 $geth_config_path"
+
+        echo "== Writing geth genesis config"
+        docker compose run scripts write-geth-genesis-config
+
+        echo "== Initializing go-ethereum genesis configuration"
+        docker compose run geth init --state.scheme hash --datadir $geth_data_path $geth_config_path/geth_genesis.json
+
+        echo "== Starting geth"
+        docker compose up --wait geth
+
+        echo "== Waiting for geth to sync"
+        docker compose run scripts wait-for-sync --url http://geth:9545
+
+        echo "== create geth traffic"
+        docker compose run scripts send-l1 --ethamount 1000 --to user_l1user --url ws://geth:9546 --wait
+        docker compose run scripts send-l1 --ethamount 0.0001 --from user_l1user --to user_l1user_b --url ws://geth:9546 --wait --delay 500 --times 1000000 > /dev/null &
+
+        echo "== Deploying Inbound State Sender contract"
+        docker compose run -e RPC_URL="http://host.docker.internal:9545" -e DEPLOYER_PRIVATE_KEY=$devprivkey -e CHAIN_DEPLOYMENT_INFO="/config/deployment.json" dojima-contracts deploy_inbound_state_sender_local
+        docker compose run --entrypoint sh dojima-contracts -c "cp /config/deployment.json /config/geth_inbound_state_sender_address.json"
+        geth_inbound_state_sender=$(docker compose run --entrypoint sh dojima-contracts -c "jq -r '.inbound_state_sender' /config/deployment.json")
+        echo "Inbound State Sender Address: $geth_inbound_state_sender"
+    fi
 
     if $consensusclient; then
-      echo == Writing prysm configs
+      echo "== Writing prysm configs"
       docker compose run scripts write-prysm-config
 
-      echo == Creating prysm genesis
+      echo "== Creating prysm genesis"
       docker compose run create_beacon_chain_genesis
     fi
 
-    echo == Initializing go-ethereum genesis configuration
-    docker compose run geth init --state.scheme hash --datadir /datadir/ /config/geth_genesis.json
-
     if $consensusclient; then
-      echo == Running prysm
+      echo "== Running prysm"
       docker compose up --wait prysm_beacon_chain
       docker compose up --wait prysm_validator
     fi
 
-    echo == Starting geth
-    docker compose up --wait geth
+    echo "== Generate env file"
+    generate_env_file
 
-    echo == Waiting for geth to sync
-    docker compose run scripts wait-for-sync --url http://geth:8545
+    if $run_hermes; then
+        echo "== Starting hermes"
+        docker compose up --wait hermes
 
-    echo == Funding validator, sequencer and l2owner
-    docker compose run scripts send-l1 --ethamount 1000 --to validator --wait
-    docker compose run scripts send-l1 --ethamount 1000 --to sequencer --wait
-    docker compose run scripts send-l1 --ethamount 1000 --to l2owner --wait
-    docker compose run scripts send-l1 --ethamount 10000 --to espresso-sequencer --wait
+        echo "Wait for sometime for HERMESChain API to be ready..."
+        sleep 30
 
-    echo == create l1 traffic
-    docker compose run scripts send-l1 --ethamount 1000 --to user_l1user --wait
-    docker compose run scripts send-l1 --ethamount 0.0001 --from user_l1user --to user_l1user_b --wait --delay 500 --times 1000000 > /dev/null &
+        echo "== Funding hermes secondary account"
+        docker compose run scripts fund-hermes-secondary-account --amount 10
+        sleep 10 ## TODO: find a way to add balance in one go
+        docker compose run scripts fund-hermes-secondary-account --amount 10
+    fi
+
+    if $run_dojima; then
+        echo "== Generating dojima keys"
+        docker compose run scripts write-dojima-accounts
+
+        echo "Creating volume for dojima chain"
+        docker compose run --entrypoint sh dojimachain -c "echo password > $dojima_data_path/passphrase"
+        docker compose run --entrypoint sh dojimachain -c "chown -R 1000:1000 $dojima_keystore_path"
+        docker compose run --entrypoint sh dojimachain -c "chown -R 1000:1000 $dojima_config_path"
+
+        echo "== Writing dojima genesis config"
+        docker compose run scripts write-dojima-config
+
+        echo "== Initializing dojima genesis configuration"
+        docker compose run dojimachain init --state.scheme hash --datadir $dojima_data_path $dojima_config_path/dojima_genesis.json
+
+        echo "== Starting dojima"
+        docker compose up --wait dojimachain
+
+        echo "== Funding validator, sequencer, l2owner and espresso-sequencer addresses"
+        docker compose run scripts send-l1 --ethamount 10000 --to validator --wait
+        docker compose run scripts send-l1 --ethamount 10000 --to sequencer --wait
+        docker compose run scripts send-l1 --ethamount 10000 --to l2owner --wait
+        docker compose run scripts send-l1 --ethamount 10000 --to espresso-sequencer --wait
+
+        echo "== create dojima traffic"
+        docker compose run scripts send-l1 --ethamount 1000 --to user_l1user --wait
+        docker compose run scripts send-l1 --ethamount 0.0001 --from user_l1user --to user_l1user_b --wait --delay 500 --times 1000000 > /dev/null &
+
+        echo "== Initializing Outbound State Sender"
+        docker compose run -e RPC_URL="http://dojima-chain:8545" -e DEPLOYER_PRIVATE_KEY=$devprivkey -e CHAIN_DEPLOYMENT_INFO="/config/deployment.json" -e WHITELIST_CHAIN_NAME-"ETH" dojima-contracts deploy_outbound_state_sender_local
+        docker compose run --entrypoint sh dojima-contracts -c "cp /config/deployment.json /config/outbound_state_sender_address.json"
+        outbound_state_sender=$(docker compose run --entrypoint sh dojima-contracts -c "jq -r '.outbound_state_sender' /config/outbound_state_sender_address.json")
+        if [ "$outbound_state_sender" != "0x0000000000000000000000000000000000001100" ]; then
+            echo "== Outbound State Sender not initialized"
+        else
+            echo "== Outbound State Sender initialized"
+        fi
+    fi
+
+
+   if $run_operator_gateway; then
+        echo "== Creating operator"
+        docker compose run scripts create-operator --serverUrl "host.docker.internal:1219" --stakeAmount "10000"
+
+        if $run_geth; then
+            register_chain --chainId 1002 --chainTicker ETH --rpcUrl "http://host.docker.internal:9545" --wsUrl "ws://geth:9546"
+        fi
+
+        if $run_dojima; then
+            register_chain --chainId 1002 --chainTicker DOJ --rpcUrl "http://host.docker.internal:8545" --wsUrl "ws://dojima-chain:9546"
+        fi
+
+        # Start the operator gateway
+        start_operator
+
+        sleep 10
+
+        if $run_geth; then
+            register_client 1002 "ETH" "http://host.docker.internal:9545" "ws://geth:9546"
+        fi
+
+        if $run_dojima; then
+            register_client 1002 "DOJ" "http://host.docker.internal:8545" "ws://dojima-chain:9546"
+        fi
+
+        if $run_crawler; then
+            echo "== Starting crawler"
+            docker compose up --wait crawler
+        fi
+
+        if $run_narada; then
+            echo "== Starting narada"
+            docker compose up --wait narada
+
+            echo "== Waiting for narada to start"
+            sleep 50
+        fi
+
+         if $create_doj_pool; then
+             echo "== Creating DOJ pool"
+             docker compose run scripts create-doj-pool --dojAmount 10 --hermesAmount 10
+             sleep 10
+         fi
+
+         if $create_eth_pool; then
+             echo "== Creating ETH pool"
+             docker compose run scripts create-eth-pool --ethAmount 10 --hermesAmount 10
+             sleep 5
+         fi
+   fi
 
     l2ownerAddress=`docker compose run scripts print-address --account l2owner | tail -n 1 | tr -d '\r\n'`
     echo $l2ownerAddress
@@ -505,7 +779,7 @@ if $force_init; then
         echo "== Writing l2 chain config (anytrust enabled)"
         docker compose run scripts --l2owner $l2ownerAddress  write-l2-chain-config --anytrust --espresso $l2_espresso
     else
-        echo == Writing l2 chain config
+        echo "== Writing l2 chain config"
         docker compose run scripts --l2owner $l2ownerAddress  write-l2-chain-config --espresso $l2_espresso
     fi
 
@@ -513,8 +787,8 @@ if $force_init; then
     l2ownerKey=`docker compose run scripts print-private-key --account l2owner | tail -n 1 | tr -d '\r\n'`
     wasmroot=`docker compose run --entrypoint sh sequencer -c "cat /home/user/target/machines/latest/module-root.txt"`
 
-    echo == Deploying L2 chain
-    docker compose run -e PARENT_CHAIN_RPC="http://geth:8545" -e DEPLOYER_PRIVKEY=$l2ownerKey -e PARENT_CHAIN_ID=$l1chainid -e CHILD_CHAIN_NAME="arb-dev-test" -e MAX_DATA_SIZE=117964 -e OWNER_ADDRESS=$l2ownerAddress -e WASM_MODULE_ROOT=$wasmroot -e SEQUENCER_ADDRESS=$sequenceraddress -e AUTHORIZE_VALIDATORS=10 -e CHILD_CHAIN_CONFIG_PATH="/config/l2_chain_config.json" -e CHAIN_DEPLOYMENT_INFO="/config/deployment.json" -e CHILD_CHAIN_INFO="/config/deployed_chain_info.json" -e LIGHT_CLIENT_ADDR=$lightClientAddr  rollupcreator create-rollup-testnode
+    echo "== Deploying L2 chain"
+    docker compose run -e PARENT_CHAIN_RPC="http://host.docker.internal:8545" -e DEPLOYER_PRIVKEY=$l2ownerKey -e PARENT_CHAIN_ID=$l1chainid -e CHILD_CHAIN_NAME="arb-dev-test" -e MAX_DATA_SIZE=117964 -e OWNER_ADDRESS=$l2ownerAddress -e WASM_MODULE_ROOT=$wasmroot -e SEQUENCER_ADDRESS=$sequenceraddress -e AUTHORIZE_VALIDATORS=10 -e CHILD_CHAIN_CONFIG_PATH="/config/l2_chain_config.json" -e CHAIN_DEPLOYMENT_INFO="/config/deployment.json" -e CHILD_CHAIN_INFO="/config/deployed_chain_info.json" -e LIGHT_CLIENT_ADDR=$lightClientAddr  rollupcreator create-rollup-testnode
     docker compose run --entrypoint sh rollupcreator -c "jq [.[]] /config/deployed_chain_info.json > /config/l2_chain_info.json"
     docker compose run --entrypoint sh rollupcreator -c "jq [.[]] /config/deployed_chain_info.json > /espresso-config/l2_chain_info.json"
     docker compose run --entrypoint sh rollupcreator -c "cat /config/l2_chain_info.json"
@@ -526,7 +800,7 @@ anytrustNodeConfigLine=""
 # Remaining init may require AnyTrust committee/mirrors to have been started
 if $l2anytrust; then
     if $force_init; then
-        echo == Generating AnyTrust Config
+        echo "== Generating AnyTrust Config"
         docker compose run --user root --entrypoint sh datool -c "mkdir /das-committee-a/keys /das-committee-a/data /das-committee-a/metadata /das-committee-b/keys /das-committee-b/data /das-committee-b/metadata /das-mirror/data /das-mirror/metadata"
         docker compose run --user root --entrypoint sh datool -c "chown -R 1000:1000 /das*"
         docker compose run datool keygen --dir /das-committee-a/keys
@@ -545,91 +819,91 @@ if $l2anytrust; then
     fi
 
     if $run; then
-        echo == Starting AnyTrust committee and mirror
+        echo "== Starting AnyTrust committee and mirror"
         docker compose up --wait das-committee-a das-committee-b das-mirror
     fi
 fi
 
 if $force_init; then
     if $simple; then
-        echo == Writing configs for simple
+        echo "== Writing configs for simple"
         docker compose run scripts write-config --simple $anytrustNodeConfigLine --simpleWithValidator $simple_with_validator --espresso $l2_espresso --lightClientAddress $lightClientAddr
 
     else
-        echo == Writing configs
+        echo "== Writing configs"
         docker compose run scripts write-config  $anytrustNodeConfigLine --espresso $l2_espresso --lightClientAddress $lightClientAddr
         if $enableEspressoFinalityNode; then
-            echo == Writing configs for finality node
+            echo "== Writing configs for finality node"
             docker compose run scripts write-config  $anytrustNodeConfigLine  --espresso $l2_espresso  --enableEspressoFinalityNode --lightClientAddress $lightClientAddr
         fi
-        echo == Initializing redis
+        echo "== Initializing redis"
         docker compose up --wait redis
         docker compose run scripts redis-init --redundancy $redundantsequencers
     fi
 
-    echo == Funding l2 funnel and dev key
+    echo "== Funding l2 funnel and dev key"
     docker compose up --wait $INITIAL_SEQ_NODES
     docker compose run scripts bridge-funds --ethamount 100000 --wait
     docker compose run scripts send-l2 --ethamount 10000 --to espresso-sequencer --wait
     docker compose run scripts send-l2 --ethamount 100 --to l2owner --wait
 
     if $tokenbridge; then
-        echo == Deploying L1-L2 token bridge
+        echo "== Deploying L1-L2 token bridge"
         sleep 10 # no idea why this sleep is needed but without it the deploy fails randomly
         rollupAddress=`docker compose run --entrypoint sh poster -c "jq -r '.[0].rollup.rollup' /config/deployed_chain_info.json | tail -n 1 | tr -d '\r\n'"`
         l2ownerKey=`docker compose run scripts print-private-key --account l2owner | tail -n 1 | tr -d '\r\n'`
-        docker compose run -e ROLLUP_OWNER_KEY=$l2ownerKey -e ROLLUP_ADDRESS=$rollupAddress -e PARENT_KEY=$devprivkey -e PARENT_RPC=http://geth:8545 -e CHILD_KEY=$devprivkey -e CHILD_RPC=http://sequencer:8547 tokenbridge deploy:local:token-bridge
+        docker compose run -e ROLLUP_OWNER_KEY=$l2ownerKey -e ROLLUP_ADDRESS=$rollupAddress -e PARENT_KEY=$devprivkey -e PARENT_RPC=http://dojima-chain:8545 -e CHILD_KEY=$devprivkey -e CHILD_RPC=http://sequencer:8547 tokenbridge deploy:local:token-bridge
         docker compose run --entrypoint sh tokenbridge -c "cat network.json && cp network.json l1l2_network.json && cp network.json localNetwork.json"
         echo
     fi
 
-    echo == Deploy CacheManager on L2
+    echo "== Deploy CacheManager on L2"
     docker compose run -e CHILD_CHAIN_RPC="http://sequencer:8547" -e CHAIN_OWNER_PRIVKEY=$l2ownerKey rollupcreator deploy-cachemanager-testnode
 
 
     if $l3node; then
-        echo == Funding l3 users
+        echo "== Funding l3 users"
         docker compose run scripts send-l2 --ethamount 1000 --to l3owner --wait
         docker compose run scripts send-l2 --ethamount 1000 --to l3sequencer --wait
 
-        echo == Funding l2 deployers
+        echo "== Funding l2 deployers"
         docker compose run scripts send-l1 --ethamount 100 --to user_token_bridge_deployer --wait
         docker compose run scripts send-l2 --ethamount 100 --to user_token_bridge_deployer --wait
 
-        echo == Funding token deployer
+        echo "== Funding token deployer"
         docker compose run scripts send-l1 --ethamount 100 --to user_fee_token_deployer --wait
         docker compose run scripts send-l2 --ethamount 100 --to user_fee_token_deployer --wait
 
-        echo == create l2 traffic
+        echo "== create l2 traffic"
         docker compose run scripts send-l2 --ethamount 100 --to user_traffic_generator --wait
         docker compose run scripts send-l2 --ethamount 0.0001 --from user_traffic_generator --to user_fee_token_deployer --wait --delay 500 --times 1000000 > /dev/null &
 
-        echo == Writing l3 chain config
+        echo "== Writing l3 chain config"
         l3owneraddress=`docker compose run scripts print-address --account l3owner | tail -n 1 | tr -d '\r\n'`
         echo l3owneraddress $l3owneraddress
         docker compose run scripts --l2owner $l3owneraddress  write-l3-chain-config --espresso $espresso
 
         EXTRA_L3_DEPLOY_FLAG=""
         if $l3_custom_fee_token; then
-            echo == Deploying custom fee token
+            echo "== Deploying custom fee token"
             nativeTokenAddress=`docker compose run scripts create-erc20 --deployer user_fee_token_deployer --bridgeable $tokenbridge --decimals $l3_custom_fee_token_decimals | tail -n 1 | awk '{ print $NF }'`
             docker compose run scripts transfer-erc20 --token $nativeTokenAddress --amount 10000 --from user_fee_token_deployer --to l3owner
             docker compose run scripts transfer-erc20 --token $nativeTokenAddress --amount 10000 --from user_fee_token_deployer --to user_token_bridge_deployer
             EXTRA_L3_DEPLOY_FLAG="-e FEE_TOKEN_ADDRESS=$nativeTokenAddress"
         fi
 
-        echo == Deploying L3
+        echo "== Deploying L3"
         l3ownerkey=`docker compose run scripts print-private-key --account l3owner | tail -n 1 | tr -d '\r\n'`
         l3sequenceraddress=`docker compose run scripts print-address --account l3sequencer | tail -n 1 | tr -d '\r\n'`
 
         docker compose run -e DEPLOYER_PRIVKEY=$l3ownerkey -e PARENT_CHAIN_RPC="http://sequencer:8547" -e PARENT_CHAIN_ID=412346 -e CHILD_CHAIN_NAME="orbit-dev-test" -e MAX_DATA_SIZE=104857 -e OWNER_ADDRESS=$l3owneraddress -e WASM_MODULE_ROOT=$wasmroot -e SEQUENCER_ADDRESS=$l3sequenceraddress -e AUTHORIZE_VALIDATORS=10 -e CHILD_CHAIN_CONFIG_PATH="/config/l3_chain_config.json" -e CHAIN_DEPLOYMENT_INFO="/config/l3deployment.json" -e CHILD_CHAIN_INFO="/config/deployed_l3_chain_info.json" -e LIGHT_CLIENT_ADDR=$lightClientAddrForL3 $EXTRA_L3_DEPLOY_FLAG rollupcreator create-rollup-testnode
         docker compose run --entrypoint sh rollupcreator -c "jq [.[]] /config/deployed_l3_chain_info.json > /config/l3_chain_info.json"
 
-        echo == Funding l3 funnel and dev key
+        echo "== Funding l3 funnel and dev key"
         docker compose up --wait l3node sequencer
 
         if $l3_token_bridge; then
-            echo == Deploying L2-L3 token bridge
+            echo "== Deploying L2-L3 token bridge"
             deployer_key=`printf "%s" "user_token_bridge_deployer" | openssl dgst -sha256 | sed 's/^.*= //'`
             rollupAddress=`docker compose run --entrypoint sh poster -c "jq -r '.[0].rollup.rollup' /config/deployed_l3_chain_info.json | tail -n 1 | tr -d '\r\n'"`
             l2Weth=""
@@ -642,7 +916,7 @@ if $force_init; then
             docker compose run --entrypoint sh tokenbridge -c "cat network.json && cp network.json l2l3_network.json"
         fi
 
-        echo == Fund L3 accounts
+        echo "== Fund L3 accounts"
         if $l3_custom_fee_token; then
             docker compose run scripts bridge-native-token-to-l3 --amount 5000 --from user_fee_token_deployer --wait
             docker compose run scripts send-l3 --ethamount 100 --from user_fee_token_deployer --wait
@@ -651,12 +925,12 @@ if $force_init; then
         fi
         docker compose run scripts send-l3 --ethamount 10 --to l3owner --wait
 
-        echo == Deploy CacheManager on L3
+        echo "== Deploy CacheManager on L3"
         docker compose run -e CHILD_CHAIN_RPC="http://l3node:3347" -e CHAIN_OWNER_PRIVKEY=$l3ownerkey rollupcreator deploy-cachemanager-testnode
 
         if $l3_token_bridge; then
             # set L3 UpgradeExecutor, deployed by token bridge creator in previous step, to be the L3 chain owner. L3owner (EOA) and alias of L2 UpgradeExectuor have the executor role on the L3 UpgradeExecutor
-            echo == Set L3 UpgradeExecutor to be chain owner
+            echo "== Set L3 UpgradeExecutor to be chain owner"
             tokenBridgeCreator=`docker compose run --entrypoint sh tokenbridge -c "cat l2l3_network.json" | jq -r '.l1TokenBridgeCreator'`
             docker compose run scripts transfer-l3-chain-ownership --creator $tokenBridgeCreator
         fi
@@ -670,9 +944,9 @@ if $run; then
         UP_FLAG="--wait"
     fi
 
-    echo == Launching Sequencer
+    echo "== Launching Sequencer"
     echo if things go wrong - use --init to create a new chain
-    echo $NODES
+    echo "$NODES"
 
     docker compose up $UP_FLAG $NODES
 fi

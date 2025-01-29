@@ -3,52 +3,90 @@ import * as consts from "./consts";
 import * as fs from "fs";
 import * as crypto from "crypto";
 import { runStress } from "./stress";
-const path = require("path");
+import path from "path";
 
-const specialAccounts = 7;
-
-async function writeAccounts() {
-  for (let i = 0; i < specialAccounts; i++) {
-    const wallet = specialAccount(i)
-    let walletJSON = await wallet.encrypt(consts.l1passphrase);
+async function writeHermesAccounts() {
+  const wallet = specialHermesAccount(0)
+  let walletJSON = await wallet.encrypt(consts.hermes_account_password);
+  let filePath = path.join(consts.dojima_keystore_path, wallet.address + ".key")
+  if (!fs.existsSync(filePath)) {
     fs.writeFileSync(
-      path.join(consts.l1keystore, wallet.address + ".key"),
-      walletJSON
+        filePath,
+        walletJSON
     );
   }
 }
 
-function specialAccount(index: number): ethers.Wallet {
+async function writeDojimaAccounts(argv: any) {
+  await writeHermesAccounts();
+  for (let i = 0; i < argv.count; i++) {
+      const wallet = specialEthAccount(i)
+      let walletJSON = await wallet.encrypt(consts.dojima_passphrase);
+      // if the account is already created, we don't need to create it again
+      let filePath = path.join(consts.dojima_keystore_path, wallet.address + ".key");
+      if (!fs.existsSync(filePath)) {
+        fs.writeFileSync(
+            filePath,
+            walletJSON
+        );
+      }
+    }
+  }
+
+// we are using same HD path for GETH and DOJIMA accounts
+async function writeGethAccounts(argv: any) {
+  for (let i = 0; i < argv.count; i++) {
+    const wallet = specialEthAccount(i)
+    let walletJSON = await wallet.encrypt(consts.geth_passphrase);
+    // if the account is already created, we don't need to create it again
+    let filePath = path.join(consts.geth_keystore_path, wallet.address + ".key");
+    if (!fs.existsSync(filePath)) {
+      fs.writeFileSync(
+        filePath,
+        walletJSON
+      );
+    }
+  }
+}
+
+function specialHermesAccount(index: number): ethers.Wallet {
   return ethers.Wallet.fromMnemonic(
-    consts.l1mnemonic,
+    consts.hermes_mnemonic,
+    "m/44'/184'/0'/0/" + index
+  );
+}
+
+function specialEthAccount(index: number): ethers.Wallet {
+  return ethers.Wallet.fromMnemonic(
+    consts.geth__and_doj_mnemonic,
     "m/44'/60'/0'/0/" + index
   );
 }
 
-export function namedAccount(
+export function namedDojimaAccount(
   name: string,
   threadId?: number | undefined
 ): ethers.Wallet {
   if (name == "funnel") {
-    return specialAccount(0);
+    return specialEthAccount(0);
   }
   if (name == "sequencer") {
-    return specialAccount(1);
+    return specialEthAccount(1);
   }
   if (name == "validator") {
-    return specialAccount(2);
+    return specialEthAccount(2);
   }
   if (name == "l3owner") {
-    return specialAccount(3);
+    return specialEthAccount(3);
   }
   if (name == "l3sequencer") {
-    return specialAccount(4);
+    return specialEthAccount(4);
   }
   if (name == "l2owner") {
-    return specialAccount(5);
+    return specialEthAccount(5);
   }
   if (name == "espresso-sequencer")
-    return specialAccount(6);
+    return specialEthAccount(6);
   if (name.startsWith("user_")) {
     return new ethers.Wallet(
       ethers.utils.sha256(ethers.utils.toUtf8Bytes(name))
@@ -82,7 +120,7 @@ export function namedAddress(
   if (name == "random") {
     return "0x" + crypto.randomBytes(20).toString("hex");
   }
-  return namedAccount(name, threadId).address;
+  return namedDojimaAccount(name, threadId).address;
 }
 
 export const namedAccountHelpString =
@@ -102,7 +140,7 @@ async function handlePrintAddress(argv: any, threadId: number) {
 }
 
 async function handlePrintPrivateKey(argv: any, threadId: number) {
-  console.log(namedAccount(argv.account, threadId).privateKey);
+  console.log(namedDojimaAccount(argv.account, threadId).privateKey);
 }
 
 export const printAddressCommand = {
@@ -135,10 +173,30 @@ export const printPrivateKeyCommand = {
   },
 }
 
-export const writeAccountsCommand = {
-  command: "write-accounts",
+export const writeGethAccountsCommand = {
+  command: "write-geth-accounts",
   describe: "writes wallet files",
+  count: { number: true, default: 7 },
   handler: async (argv: any) => {
-    await writeAccounts();
+    await runStress(argv, writeGethAccounts);
   },
 };
+
+export const writeHermesAccountCommand = {
+  command: "write-hermes-account",
+  describe: "writes wallet files",
+  handler: async (argv: any) => {
+    await writeHermesAccounts();
+  },
+};
+
+export const writeDojimaAccountsCommand  = {
+  command: "write-dojima-accounts",
+  describe: "write dojima chain accounts",
+  builder: {
+    count: { number: true, default: 7 },
+  },
+  handler: async (argv: any) => {
+    await runStress(argv, writeDojimaAccounts);
+  }
+}

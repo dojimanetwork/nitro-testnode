@@ -56,7 +56,7 @@ forge update
 echo "Deploying mock espresso tee verifier"
 forge script --chain $PARENT_CHAIN_CHAIN_ID ../espresso-tests/DeployMockVerifier.s.sol:DeployMockVerifier --rpc-url $PARENT_CHAIN_RPC_URL --broadcast -vvvv
 
-ESPRESSO_TEE_VERIFIER_ADDRESS=$(cat broadcast/DeployMockVerifier.s.sol/1337/run-latest.json | jq -r '.transactions[0].contractAddress' | cast to-checksum)
+ESPRESSO_TEE_VERIFIER_ADDRESS=$(cat broadcast/DeployMockVerifier.s.sol/184/run-latest.json | jq -r '.transactions[0].contractAddress' | cast to-checksum)
 echo "Mock TEE Address:"
 echo $ESPRESSO_TEE_VERIFIER_ADDRESS
 
@@ -67,7 +67,7 @@ forge script --chain $PARENT_CHAIN_CHAIN_ID ../espresso-tests/DeployAndInitEspre
 
 # Extract new_osp_entry address from run-latest.json
 #  * Essential migration sub step * These addresses are likely known addresses to operators in the event of a real migration after they have deployed the new OSP contracts, however, if operators create a script for the migration, this command is useful.
-NEW_SEQUENCER_INBOX_IMPL_ADDRESS=$(cat broadcast/DeployAndInitEspressoSequencerInbox.s.sol/1337/run-latest.json | jq -r '.transactions[0].contractAddress'| cast to-checksum)
+NEW_SEQUENCER_INBOX_IMPL_ADDRESS=$(cat broadcast/DeployAndInitEspressoSequencerInbox.s.sol/184/run-latest.json | jq -r '.transactions[0].contractAddress'| cast to-checksum)
 # Echo for debugging.
 echo "Deployed new SequencerInbox at $NEW_SEQUENCER_INBOX_IMPL_ADDRESS"
 
@@ -79,7 +79,7 @@ forge script --chain $PARENT_CHAIN_CHAIN_ID contracts/parent-chain/espresso-migr
 
 # Capture new OSP address
 # * Essential migration sub step ** Essential migration sub step * operators will be able to manually determine this address while running the upgrade, but this can be useful if they wish to make a script.
-SEQUENCER_MIGRATION_ACTION=$(cat broadcast/DeployEspressoSequencerMigrationAction.s.sol/1337/run-latest.json | jq -r '.transactions[0].contractAddress' | cast to-checksum)
+SEQUENCER_MIGRATION_ACTION=$(cat broadcast/DeployEspressoSequencerMigrationAction.s.sol/184/run-latest.json | jq -r '.transactions[0].contractAddress' | cast to-checksum)
 
 echo "Deployed new EspressoSequencerMigrationAction at $SEQUENCER_MIGRATION_ACTION"
 
